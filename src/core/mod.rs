@@ -7,7 +7,7 @@ mod universal;
 pub use context::ContextAdd;
 pub use context::WithContext;
 pub use domain::{DomainFrom, DomainReason};
-pub use error::{ErrorCode, StructError, StructErrorTrait, StructReason};
+pub use error::{ErrorCode, StructError, StructErrorTrait, StructReason, stc_err_conv};
 pub use universal::ErrorPayload;
 pub use universal::UvsReason;
 pub use universal::UvsReasonFrom;

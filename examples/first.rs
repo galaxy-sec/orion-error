@@ -1,5 +1,5 @@
 use orion_error::{
-    DomainFrom, DomainReason, ErrorCode, ErrorOwe, ErrorWith, StructError, UseTarget, WithContext,
+    DomainFrom, DomainReason, ErrorCode, ErrorOwe, ErrorWith, StructError, WithContext, WithTarget,
 };
 use std::fmt::{self, Display};
 

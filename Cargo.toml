@@ -6,3 +6,6 @@ edition = "2024"
 [dependencies]
 thiserror = "~2.0"
 derive-getters = "~0.5"
+
+[dev-dependencies]
+parse-display-derive = "0.10.0"

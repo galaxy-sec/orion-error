@@ -4,9 +4,12 @@ mod traits;
 
 pub use core::StructError;
 pub use core::WithContext;
-pub use core::{DomainFrom, DomainReason, ErrorCode, StructErrorTrait};
+pub use core::{
+    DomainFrom, DomainReason, ErrorCode, StructErrorTrait, StructReason, UvsReason, UvsReasonFrom,
+    stc_err_conv,
+};
 pub use traits::ErrorOwe;
-pub use traits::{ErrorWith, UseTarget};
+pub use traits::{ErrorWith, WithTarget};
 pub type SeResult<T, R> = Result<T, StructError<R>>;
 /*
 pub use context::WithContext;

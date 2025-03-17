@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use crate::{
     SeResult,
-    traits::{ErrorPosition, UseTarget},
+    traits::{ErrorPosition, WithTarget},
 };
 
 use super::{
@@ -21,6 +21,18 @@ pub enum StructReason<T: DomainReason> {
     #[error("{0}")]
     Domain(T),
 }
+impl<T: DomainReason> From<UvsReason> for StructReason<T> {
+    fn from(value: UvsReason) -> Self {
+        Self::Universal(value)
+    }
+}
+
+impl<T: DomainReason> From<T> for StructReason<T> {
+    fn from(value: T) -> Self {
+        Self::Domain(value)
+    }
+}
+
 pub trait ErrorCode {
     fn error_code(&self) -> i32 {
         500
@@ -79,7 +91,7 @@ impl<T: DomainReason> StructError<T> {
         self.detail = Some(detail.into());
         self
     }
-    pub fn err(self) -> Result<(), Self> {
+    pub fn err<V>(self) -> Result<V, Self> {
         Err(self)
     }
 }
@@ -127,15 +139,15 @@ impl<T: std::fmt::Display + DomainReason> Display for StructError<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match (&self.target, &self.detail) {
             (Some(target), Some(detail)) => {
-                write!(f, "{}\nTarget:{}\nDetail:{}", self.reason, target, detail)?;
+                write!(f, "{}\nWant:{}\nDetail:{}", self.reason, target, detail)?;
                 write!(f, "{}", self.context)
             }
             (Some(target), None) => {
-                write!(f, "{}\nTarget:{}", self.reason, target)?;
+                write!(f, "{}\nWant:{}", self.reason, target)?;
                 write!(f, "{}", self.context)
             }
             (None, Some(detail)) => {
-                write!(f, "{}\nDetail:{}", self.reason, detail)?;
+                write!(f, "{}\nWant:{}", self.reason, detail)?;
                 write!(f, "{}", self.context)
             }
             (None, None) => {
@@ -146,7 +158,7 @@ impl<T: std::fmt::Display + DomainReason> Display for StructError<T> {
     }
 }
 
-impl<T: DomainReason> UseTarget for StructError<T> {
+impl<T: DomainReason> WithTarget for StructError<T> {
     fn want<S: Into<String>>(mut self, desc: S) -> Self {
         self.target = Some(desc.into());
         self
@@ -166,11 +178,12 @@ pub fn ste_from_uvs<R: DomainReason>(reason: UvsReason) -> StructError<R> {
 pub fn stc_err_conv<R1, R2>(e: StructError<R1>) -> StructError<R2>
 where
     R1: DomainReason,
-    R2: From<R1> + DomainReason,
+    R2: DomainReason,
+    StructReason<R2>: From<R1>,
 {
     let reason = match *e.reason {
         StructReason::Universal(u) => StructReason::<R2>::Universal(u),
-        StructReason::Domain(d) => StructReason::<R2>::Domain(R2::from(d)),
+        StructReason::Domain(d) => StructReason::<R2>::from(d),
     };
     StructError {
         reason: Box::new(reason),

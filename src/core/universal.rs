@@ -16,21 +16,21 @@ pub enum ConfRSEnum {
 /// 统一错误原因分类
 #[derive(Debug, Error, PartialEq, Clone)]
 pub enum UvsReason {
-    #[error("logic error > {0}")]
+    #[error("logic error << {0}")]
     LogicError(ErrorPayload),
-    #[error("biz error > {0}")]
+    #[error("biz error << {0}")]
     BizError(ErrorPayload),
-    #[error("data error > {0}")]
+    #[error("data error << {0}")]
     DataError(ErrorPayload, Option<usize>),
-    #[error("sys error > {0}")]
+    #[error("sys error << {0}")]
     SysError(ErrorPayload),
-    #[error("res error > {0}")]
+    #[error("res error << {0}")]
     ResError(ErrorPayload),
-    #[error("conf error > {0}")]
+    #[error("conf error << {0}")]
     ConfError(ConfRSEnum),
-    #[error("rule error > {0}")]
+    #[error("rule error << {0}")]
     RuleError(ErrorPayload),
-    #[error("privacy error > {0}")]
+    #[error("privacy error << {0}")]
     PrivacyError(ErrorPayload),
 }
 

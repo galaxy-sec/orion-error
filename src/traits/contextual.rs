@@ -1,6 +1,6 @@
 use crate::core::{ContextAdd, DomainReason, StructError};
 
-pub trait UseTarget {
+pub trait WithTarget {
     fn want<S: Into<String>>(self, desc: S) -> Self;
 }
 
@@ -8,7 +8,7 @@ pub trait ErrorPosition {
     fn position<S: Into<String>>(self, desc: S) -> Self;
 }
 
-impl<T, E: UseTarget> UseTarget for Result<T, E> {
+impl<T, E: WithTarget> WithTarget for Result<T, E> {
     fn want<S: Into<String>>(self, desc: S) -> Self {
         self.map_err(|e| e.want(desc))
     }
