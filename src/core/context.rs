@@ -15,8 +15,9 @@ impl WithContext {
             context: ErrContext::default(),
         }
     }
-    pub fn with<S: Into<String>>(&mut self, msg: S) {
-        self.context.items.push(msg.into())
+    pub fn with<S: Into<String>>(mut self, msg: S) -> Self {
+        self.context.items.push(msg.into());
+        self
     }
 }
 

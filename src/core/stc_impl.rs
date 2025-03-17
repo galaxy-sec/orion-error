@@ -1,15 +1,9 @@
 use std::fmt::Display;
 
-use crate::{
-    SeResult,
-    traits::{ErrorPosition, UseTarget},
-};
-
 use super::{
-    context::{ContextAdd, ErrContext, WithContext},
     domain::{DomainFrom, DomainReason},
-    error::{ErrStructAble, StructError, StructReason, ste_from_uvs},
-    universal::{ConfRSEnum, UvsMakeAble, UvsReason, UvsReasonFrom},
+    error::{StructError, StructErrorTrait, StructReason, ste_from_uvs},
+    universal::{ConfRSEnum, ErrorPayload, UvsReason, UvsReasonFrom},
 };
 
 impl<T: DomainReason> From<UvsReason> for StructError<T> {
@@ -18,89 +12,34 @@ impl<T: DomainReason> From<UvsReason> for StructError<T> {
     }
 }
 
-impl<R> UvsReasonFrom<StructError<R>> for StructError<R>
+impl<R> UvsReasonFrom<StructError<R>, String> for StructError<R>
 where
     R: DomainReason,
 {
-    fn from_sys_err<E>(e: E) -> Self
-    where
-        E: Display,
-    {
-        Self::from_uvs_rs(UvsReason::SysError(format!("{}", e)))
+    fn from_sys(info: String) -> Self {
+        Self::from_uvs_rs(UvsReason::SysError(ErrorPayload::new(info)))
     }
 
-    fn from_sys<S: Into<String>>(info: S) -> Self {
-        Self::from_uvs_rs(UvsReason::SysError(info.into()))
+    fn from_rule(info: String) -> Self {
+        Self::from_uvs_rs(UvsReason::RuleError(ErrorPayload::new(info)))
+    }
+    fn from_logic(info: String) -> Self {
+        Self::from_uvs_rs(UvsReason::LogicError(ErrorPayload::new(info)))
+    }
+    fn from_biz(info: String) -> Self {
+        Self::from_uvs_rs(UvsReason::BizError(ErrorPayload::new(info)))
     }
 
-    fn from_rule_err<E>(e: E) -> Self
-    where
-        E: Display,
-    {
-        Self::from_uvs_rs(UvsReason::RuleError(format!("{}", e)))
-    }
-    fn from_rule<S: Into<String>>(info: S) -> Self {
-        Self::from_uvs_rs(UvsReason::RuleError(info.into()))
-    }
-    fn from_logic_err<E>(e: E) -> Self
-    where
-        E: Display,
-    {
-        Self::from_uvs_rs(UvsReason::LogicError(format!("{}", e)))
-    }
-    fn from_logic<S: Into<String>>(info: S) -> Self {
-        Self::from_uvs_rs(UvsReason::LogicError(info.into()))
-    }
-    fn from_biz_err<E>(e: E) -> Self
-    where
-        E: Display,
-    {
-        Self::from_uvs_rs(UvsReason::BizError(format!("{}", e)))
-    }
-    fn from_biz<S: Into<String>>(info: S) -> Self {
-        Self::from_uvs_rs(UvsReason::BizError(info.into()))
+    fn from_conf(info: String) -> Self {
+        Self::from_uvs_rs(UvsReason::ConfError(ConfRSEnum::Core(info)))
     }
 
-    fn from_conf_err<E: Display>(e: E) -> Self {
-        Self::from_uvs_rs(UvsReason::ConfError(ConfRSEnum::Core(format!("{}", e))))
-    }
-    fn from_conf_err_msg<E: Display>(e: E, msg: String) -> Self {
-        Self::from_uvs_rs(UvsReason::ConfError(ConfRSEnum::Core(format!(
-            "{}/n{}",
-            e, msg
-        ))))
+    fn from_res(info: String) -> Self {
+        Self::from_uvs_rs(UvsReason::ResError(ErrorPayload::new(info)))
     }
 
-    fn from_conf<S: Into<String>>(info: S) -> Self {
-        Self::from_uvs_rs(UvsReason::ConfError(ConfRSEnum::Core(info.into())))
-    }
-
-    fn from_res_err<E>(e: E) -> Self
-    where
-        E: Display,
-    {
-        Self::from_uvs_rs(UvsReason::ResError(format!("{}", e)))
-    }
-
-    fn from_res<S: Into<String>>(info: S) -> Self {
-        Self::from_uvs_rs(UvsReason::ResError(info.into()))
-    }
-
-    fn from_data<S: Into<String>>(info: S, pos: Option<usize>) -> Self {
-        Self::from_uvs_rs(UvsReason::DataError(info.into(), pos))
-    }
-
-    fn from_data_err<E>(e: E) -> Self
-    where
-        E: Display,
-    {
-        Self::from_uvs_rs(UvsReason::DataError(format!("{}", e,), None))
-    }
-}
-
-impl<T: DomainReason> UvsMakeAble for StructError<T> {
-    fn make(reason: UvsReason, position: Option<String>) -> Self {
-        Self::new(StructReason::Universal(reason)).with_position(position)
+    fn from_data(info: String, pos: Option<usize>) -> Self {
+        Self::from_uvs_rs(UvsReason::DataError(ErrorPayload::new(info), pos))
     }
 }
 

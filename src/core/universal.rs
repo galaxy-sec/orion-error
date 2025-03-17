@@ -1,5 +1,7 @@
-use std::fmt::Display;
+use std::{error::Error, fmt::Display};
 use thiserror::Error;
+
+use super::ErrorCode;
 
 #[derive(Debug, Error, PartialEq, Clone)]
 pub enum ConfRSEnum {
@@ -10,25 +12,28 @@ pub enum ConfRSEnum {
     #[error("dynamic config error > {0}")]
     Dynamic(String),
 }
+
+/// 统一错误原因分类
 #[derive(Debug, Error, PartialEq, Clone)]
 pub enum UvsReason {
     #[error("logic error > {0}")]
-    LogicError(String),
+    LogicError(ErrorPayload),
     #[error("biz error > {0}")]
-    BizError(String),
+    BizError(ErrorPayload),
     #[error("data error > {0}")]
-    DataError(String, Option<usize>),
+    DataError(ErrorPayload, Option<usize>),
     #[error("sys error > {0}")]
-    SysError(String),
+    SysError(ErrorPayload),
     #[error("res error > {0}")]
-    ResError(String),
+    ResError(ErrorPayload),
     #[error("conf error > {0}")]
     ConfError(ConfRSEnum),
     #[error("rule error > {0}")]
-    RuleError(String),
+    RuleError(ErrorPayload),
     #[error("privacy error > {0}")]
-    PrivacyError(String),
+    PrivacyError(ErrorPayload),
 }
+
 impl UvsReason {
     pub fn core_conf<S: Into<String>>(msg: S) -> Self {
         Self::ConfError(ConfRSEnum::Core(msg.into()))
@@ -41,179 +46,89 @@ impl UvsReason {
     }
 }
 
-pub trait UvsReasonFrom<T> {
-    fn from_sys_err<E: Display>(e: E) -> T;
-    fn from_sys<S: Into<String>>(info: S) -> T;
-    fn from_rule_err<E: Display>(e: E) -> T;
-    fn from_rule<S: Into<String>>(info: S) -> T;
-    fn from_logic_err<E: Display>(e: E) -> T;
-    fn from_logic<S: Into<String>>(info: S) -> T;
-    fn from_biz_err<E: Display>(e: E) -> T;
-    fn from_biz<S: Into<String>>(info: S) -> T;
-    fn from_conf_err<E: Display>(e: E) -> T;
-    fn from_conf_err_msg<E: Display>(e: E, msg: String) -> T;
-    fn from_conf<S: Into<String>>(info: S) -> T;
-    fn from_res_err<E: Display>(e: E) -> T;
-    fn from_res<S: Into<String>>(info: S) -> T;
-    fn from_data<S: Into<String>>(info: S, pos: Option<usize>) -> T;
-    fn from_data_err<E: Display>(e: E) -> T;
+pub trait UvsReasonFrom<T, S> {
+    fn from_sys(info: S) -> T;
+    fn from_rule(info: S) -> T;
+    fn from_logic(info: S) -> T;
+    fn from_biz(info: S) -> T;
+    //fn from_conf_err_msg<E: Display>(e: E, msg: String) -> T;
+    fn from_conf(info: S) -> T;
+    fn from_res(info: S) -> T;
+    fn from_data(info: S, pos: Option<usize>) -> T;
 }
 
-impl UvsReasonFrom<UvsReason> for UvsReason {
-    fn from_sys_err<E>(e: E) -> Self
-    where
-        E: Display,
-    {
-        UvsReason::SysError(format!("{}", e))
+/// 强类型错误负载包装
+#[derive(Debug, PartialEq, Clone)]
+pub struct ErrorPayload(String);
+
+impl ErrorPayload {
+    pub fn new<S: Into<String>>(s: S) -> Self {
+        Self(s.into())
+    }
+}
+
+impl Display for ErrorPayload {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+impl From<String> for ErrorPayload {
+    fn from(value: String) -> Self {
+        ErrorPayload(value)
+    }
+}
+
+macro_rules! impl_reason_convert {
+    ($variant:ident, $method:ident) => {
+        fn $method<E: Display>(e: E) -> Self {
+            UvsReason::$variant(ErrorPayload::from(e.to_string()))
+        }
+    };
+    ($variant:ident, $method:ident, $pos:ty) => {
+        fn $method<S: Into<String>>(info: S, pos: Option<usize>) -> Self {
+            UvsReason::$variant(ErrorPayload::new(info), pos)
+        }
+    };
+}
+
+impl UvsReasonFrom<UvsReason, String> for UvsReason {
+    fn from_sys(info: String) -> Self {
+        UvsReason::SysError(ErrorPayload::new(info))
     }
 
-    fn from_sys<S: Into<String>>(info: S) -> Self {
-        UvsReason::SysError(info.into())
+    fn from_rule(info: String) -> Self {
+        UvsReason::RuleError(ErrorPayload::new(info))
+    }
+    fn from_logic(info: String) -> Self {
+        UvsReason::LogicError(ErrorPayload::new(info))
+    }
+    fn from_biz(info: String) -> Self {
+        UvsReason::BizError(ErrorPayload::new(info))
     }
 
-    fn from_rule_err<E>(e: E) -> Self
-    where
-        E: Display,
-    {
-        UvsReason::RuleError(format!("{}", e))
-    }
-    fn from_rule<S: Into<String>>(info: S) -> Self {
-        UvsReason::RuleError(info.into())
-    }
-    fn from_logic_err<E>(e: E) -> Self
-    where
-        E: Display,
-    {
-        UvsReason::LogicError(format!("{}", e))
-    }
-    fn from_logic<S: Into<String>>(info: S) -> Self {
-        UvsReason::LogicError(info.into())
-    }
-    fn from_biz_err<E>(e: E) -> Self
-    where
-        E: Display,
-    {
-        UvsReason::BizError(format!("{}", e))
-    }
-    fn from_biz<S: Into<String>>(info: S) -> Self {
-        UvsReason::BizError(info.into())
-    }
-
-    fn from_conf_err<E: Display>(e: E) -> Self {
-        UvsReason::ConfError(ConfRSEnum::Core(format!("{}", e)))
-    }
-    fn from_conf_err_msg<E: Display>(e: E, msg: String) -> Self {
-        UvsReason::ConfError(ConfRSEnum::Core(format!("{}/n{}", e, msg)))
-    }
-
-    fn from_conf<S: Into<String>>(info: S) -> Self {
+    fn from_conf(info: String) -> Self {
         UvsReason::ConfError(ConfRSEnum::Core(info.into()))
     }
 
-    fn from_res_err<E>(e: E) -> Self
-    where
-        E: Display,
-    {
-        UvsReason::ResError(format!("{}", e))
+    fn from_res(info: String) -> Self {
+        UvsReason::ResError(ErrorPayload::new(info))
     }
-
-    fn from_res<S: Into<String>>(info: S) -> Self {
-        UvsReason::ResError(info.into())
-    }
-
-    fn from_data<S: Into<String>>(info: S, pos: Option<usize>) -> Self {
-        UvsReason::DataError(info.into(), pos)
-    }
-
-    fn from_data_err<E>(e: E) -> Self
-    where
-        E: Display,
-    {
-        UvsReason::DataError(format!("{}", e,), None)
+    fn from_data(info: String, pos: Option<usize>) -> Self {
+        UvsReason::DataError(ErrorPayload::new(info), pos)
     }
 }
 
-pub trait UvsMakeAble {
-    fn make(reason: UvsReason, position: Option<String>) -> Self;
-}
-
-pub struct UvsErrMaker<T> {
-    _phantom: std::marker::PhantomData<T>,
-}
-
-impl<T> UvsReasonFrom<T> for UvsErrMaker<T>
-where
-    T: UvsMakeAble,
-{
-    fn from_sys_err<E: Display>(e: E) -> T {
-        T::make(UvsReason::from_sys_err(e), None)
-    }
-
-    fn from_sys<S: Into<String>>(info: S) -> T {
-        T::make(UvsReason::from_sys(info), None)
-    }
-
-    fn from_rule_err<E: Display>(e: E) -> T {
-        T::make(UvsReason::from_rule_err(e), None)
-    }
-
-    fn from_rule<S: Into<String>>(info: S) -> T {
-        T::make(UvsReason::from_rule(info), None)
-    }
-
-    fn from_logic_err<E: Display>(e: E) -> T {
-        T::make(UvsReason::from_logic_err(e), None)
-    }
-
-    fn from_logic<S: Into<String>>(info: S) -> T {
-        T::make(UvsReason::from_logic(info), None)
-    }
-
-    fn from_biz_err<E: Display>(e: E) -> T {
-        T::make(UvsReason::from_biz_err(e), None)
-    }
-
-    fn from_biz<S: Into<String>>(info: S) -> T {
-        T::make(UvsReason::from_biz(info), None)
-    }
-
-    fn from_conf_err<E: Display>(e: E) -> T {
-        T::make(UvsReason::from_conf_err(e), None)
-    }
-    fn from_conf_err_msg<E: Display>(e: E, msg: String) -> T {
-        T::make(UvsReason::from_conf_err_msg(e, msg), None)
-    }
-
-    fn from_conf<S: Into<String>>(info: S) -> T {
-        T::make(UvsReason::from_conf(info), None)
-    }
-
-    fn from_res_err<E: Display>(e: E) -> T {
-        T::make(UvsReason::from_res_err(e), None)
-    }
-
-    fn from_res<S: Into<String>>(info: S) -> T {
-        T::make(UvsReason::from_res(info), None)
-    }
-
-    fn from_data<S: Into<String>>(info: S, pos: Option<usize>) -> T {
-        T::make(UvsReason::from_data(info, pos), None)
-    }
-
-    fn from_data_err<E: Display>(e: E) -> T {
-        T::make(UvsReason::from_data_err(e), None)
-    }
-}
-
-pub fn uvs_err2code(e: &UvsReason) -> i32 {
-    match e {
-        UvsReason::LogicError(_) => 100,
-        UvsReason::BizError(_) => 101,
-        UvsReason::DataError(_, _) => 102,
-        UvsReason::SysError(_) => 103,
-        UvsReason::ResError(_) => 104,
-        UvsReason::ConfError(_) => 105,
-        UvsReason::RuleError(_) => 106,
-        UvsReason::PrivacyError(_) => 107,
+impl ErrorCode for UvsReason {
+    fn error_code(&self) -> i32 {
+        match self {
+            UvsReason::LogicError(_) => 100,
+            UvsReason::BizError(_) => 101,
+            UvsReason::DataError(_, _) => 102,
+            UvsReason::SysError(_) => 103,
+            UvsReason::ResError(_) => 104,
+            UvsReason::ConfError(_) => 105,
+            UvsReason::RuleError(_) => 106,
+            UvsReason::PrivacyError(_) => 107,
+        }
     }
 }

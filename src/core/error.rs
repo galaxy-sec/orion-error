@@ -21,10 +21,29 @@ pub enum StructReason<T: DomainReason> {
     #[error("{0}")]
     Domain(T),
 }
-pub trait ErrStructAble<T: DomainReason> {
+pub trait ErrorCode {
+    fn error_code(&self) -> i32 {
+        500
+    }
+}
+impl<T: DomainReason + ErrorCode> ErrorCode for StructReason<T> {
+    fn error_code(&self) -> i32 {
+        match self {
+            StructReason::Universal(uvs_reason) => uvs_reason.error_code(),
+            StructReason::Domain(domain) => domain.error_code(),
+        }
+    }
+}
+pub trait StructErrorTrait<T: DomainReason> {
     fn get_reason(&self) -> &StructReason<T>;
     fn get_detail(&self) -> Option<&String>;
     fn get_target(&self) -> Option<&String>;
+}
+
+impl<T: DomainReason + ErrorCode> ErrorCode for StructError<T> {
+    fn error_code(&self) -> i32 {
+        self.reason.error_code()
+    }
 }
 
 #[derive(Error, Debug, Clone, PartialEq, Getters)]
@@ -60,9 +79,12 @@ impl<T: DomainReason> StructError<T> {
         self.detail = Some(detail.into());
         self
     }
+    pub fn err(self) -> Result<(), Self> {
+        Err(self)
+    }
 }
 
-impl<T: DomainReason> ErrStructAble<T> for StructError<T> {
+impl<T: DomainReason> StructErrorTrait<T> for StructError<T> {
     fn get_reason(&self) -> &StructReason<T> {
         &self.reason
     }
@@ -184,9 +206,5 @@ where
         R1: DomainReason,
     {
         Err(Self::from_uvs(e, reason))
-    }
-
-    pub fn from_logic<S: Into<String>>(info: S) -> Self {
-        Self::from_uvs_rs(UvsReason::LogicError(info.into()))
     }
 }

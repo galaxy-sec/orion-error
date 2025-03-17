@@ -3,7 +3,10 @@ mod testcase;
 mod traits;
 
 pub use core::StructError;
-
+pub use core::WithContext;
+pub use core::{DomainFrom, DomainReason, ErrorCode, StructErrorTrait};
+pub use traits::ErrorOwe;
+pub use traits::{ErrorWith, UseTarget};
 pub type SeResult<T, R> = Result<T, StructError<R>>;
 /*
 pub use context::WithContext;

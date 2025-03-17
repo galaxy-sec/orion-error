@@ -1,6 +1,6 @@
 use crate::{
     SeResult, StructError,
-    core::{DomainFrom, DomainReason, UvsReason},
+    core::{DomainFrom, DomainReason, UvsReason, UvsReasonFrom},
 };
 
 /// 非结构错误(StructError) 转化为结构错误。
@@ -35,24 +35,24 @@ where
     }
 
     fn owe_logic(self) -> SeResult<T, R> {
-        self.map_err(|e| StructError::from_uvs_rs(UvsReason::LogicError(e.to_string())))
+        self.map_err(|e| StructError::from_uvs_rs(UvsReason::from_sys(e.to_string())))
     }
     fn owe_biz(self) -> SeResult<T, R> {
-        self.map_err(|e| StructError::from_uvs_rs(UvsReason::BizError(e.to_string())))
+        self.map_err(|e| StructError::from_uvs_rs(UvsReason::from_biz(e.to_string())))
     }
     fn owe_rule(self) -> SeResult<T, R> {
-        self.map_err(|e| StructError::from_uvs_rs(UvsReason::RuleError(e.to_string())))
+        self.map_err(|e| StructError::from_uvs_rs(UvsReason::from_rule(e.to_string())))
     }
     fn owe_data(self) -> SeResult<T, R> {
-        self.map_err(|e| StructError::from_uvs_rs(UvsReason::DataError(e.to_string(), None)))
+        self.map_err(|e| StructError::from_uvs_rs(UvsReason::from_data(e.to_string(), None)))
     }
     fn owe_conf(self) -> SeResult<T, R> {
         self.map_err(|e| StructError::from_uvs_rs(UvsReason::core_conf(e.to_string())))
     }
     fn owe_res(self) -> SeResult<T, R> {
-        self.map_err(|e| StructError::from_uvs_rs(UvsReason::ResError(e.to_string())))
+        self.map_err(|e| StructError::from_uvs_rs(UvsReason::from_res(e.to_string())))
     }
     fn owe_sys(self) -> SeResult<T, R> {
-        self.map_err(|e| StructError::from_uvs_rs(UvsReason::SysError(e.to_string())))
+        self.map_err(|e| StructError::from_uvs_rs(UvsReason::from_sys(e.to_string())))
     }
 }

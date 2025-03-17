@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use crate::{
     SeResult,
-    core::{DomainFrom, DomainReason, StructError, StructReason, UvsReason},
+    core::{DomainFrom, DomainReason, ErrorPayload, StructError, StructReason, UvsReason},
 };
 
 pub trait ErrorConvDomain<T, R>
@@ -80,7 +80,7 @@ where
         match self {
             Ok(o) => Ok(o),
             Err(e) => {
-                let msg = format!("{}", e.reason());
+                let msg = ErrorPayload::new(format!("{}", e.reason()));
                 StructError::err_from_uvs(e, UvsReason::LogicError(msg))
             }
         }
@@ -90,7 +90,7 @@ where
         match self {
             Ok(o) => Ok(o),
             Err(e) => {
-                let msg = format!("{}", e.reason());
+                let msg = ErrorPayload::new(format!("{}", e.reason()));
                 StructError::err_from_uvs(e, UvsReason::BizError(msg))
             }
         }
@@ -100,7 +100,7 @@ where
         match self {
             Ok(o) => Ok(o),
             Err(e) => {
-                let msg = format!("{}", e.reason());
+                let msg = ErrorPayload::new(format!("{}", e.reason()));
                 StructError::err_from_uvs(e, UvsReason::RuleError(msg))
             }
         }
@@ -110,7 +110,7 @@ where
         match self {
             Ok(o) => Ok(o),
             Err(e) => {
-                let msg = format!("{}", e.reason());
+                let msg = ErrorPayload::new(format!("{}", e.reason()));
                 StructError::err_from_uvs(e, UvsReason::DataError(msg, None))
             }
         }
@@ -130,7 +130,7 @@ where
         match self {
             Ok(o) => Ok(o),
             Err(e) => {
-                let msg = format!("{}", e.reason());
+                let msg = ErrorPayload::new(format!("{}", e.reason()));
                 StructError::err_from_uvs(e, UvsReason::ResError(msg))
             }
         }
@@ -140,7 +140,7 @@ where
         match self {
             Ok(o) => Ok(o),
             Err(e) => {
-                let msg = format!("{}", e.reason());
+                let msg = ErrorPayload::new(format!("{}", e.reason()));
                 StructError::err_from_uvs(e, UvsReason::SysError(msg))
             }
         }
