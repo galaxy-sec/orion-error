@@ -1,5 +1,5 @@
 use derive_getters::Getters;
-use std::{env::var, fmt::Display};
+use std::fmt::Display;
 use thiserror::Error;
 
 #[derive(Debug, Clone, Getters)]
