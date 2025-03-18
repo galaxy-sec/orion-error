@@ -13,7 +13,12 @@ pub enum ConfRSEnum {
     Dynamic(String),
 }
 
+/// Universal error reason classification
 /// 统一错误原因分类
+///
+/// # Variants
+/// - `LogicError`: Indicates business logic violations
+/// - `SysError`: Represents system-level failures
 #[derive(Debug, Error, PartialEq, Clone)]
 pub enum UvsReason {
     #[error("logic error << {0}")]
@@ -74,7 +79,7 @@ impl Display for ErrorPayload {
 }
 impl From<String> for ErrorPayload {
     fn from(value: String) -> Self {
-        ErrorPayload(value)
+        Self::new(value)
     }
 }
 

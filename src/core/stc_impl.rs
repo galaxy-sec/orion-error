@@ -2,15 +2,9 @@ use std::fmt::Display;
 
 use super::{
     domain::{DomainFrom, DomainReason},
-    error::{StructError, StructReason, ste_from_uvs},
+    error::{StructError, StructReason},
     universal::{ConfRSEnum, ErrorPayload, UvsReason, UvsReasonFrom},
 };
-
-impl<T: DomainReason> From<UvsReason> for StructError<T> {
-    fn from(reason: UvsReason) -> Self {
-        ste_from_uvs(reason)
-    }
-}
 
 impl<R> UvsReasonFrom<StructError<R>, String> for StructError<R>
 where
@@ -49,15 +43,6 @@ impl<R: DomainReason> DomainFrom<R, R> for StructError<R> {
     }
     fn err_from_domain<T>(reason: R) -> Result<T, StructError<R>> {
         Err(Self::from_domain(reason))
-    }
-}
-
-impl<R> From<R> for StructError<R>
-where
-    R: DomainReason,
-{
-    fn from(value: R) -> Self {
-        Self::from_domain(value)
     }
 }
 

@@ -1,4 +1,4 @@
-use crate::{DomainReason, StructError, StructReason, core::stcerr_conv_from};
+use crate::{DomainReason, StructError, StructReason, core::convert_error};
 
 pub trait ErrorConv<T, R: DomainReason>: Sized {
     fn err_conv(self) -> Result<T, StructError<R>>;
@@ -13,7 +13,7 @@ where
     fn err_conv(self) -> Result<T, StructError<R2>> {
         match self {
             Ok(o) => Ok(o),
-            Err(e) => Err(stcerr_conv_from::<R1, R2>(e)),
+            Err(e) => Err(convert_error::<R1, R2>(e)),
         }
     }
 }

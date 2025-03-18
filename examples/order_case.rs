@@ -143,7 +143,7 @@ impl OrderService {
         order_txt: &str,
     ) -> Result<storage::Order, OrderError> {
         let mut ctx = WithContext::want("place_order");
-        ctx.with(order_txt);
+        ctx.with("order", order_txt);
         let order = Self::parse_order(order_txt, amount)
             .want("解析订单")
             .with(&ctx)

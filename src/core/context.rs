@@ -9,14 +9,20 @@ pub struct WithContext {
 }
 
 impl WithContext {
+    pub fn new() -> Self {
+        Self {
+            target: None,
+            context: ErrContext::default(),
+        }
+    }
     pub fn want<S: Into<String>>(target: S) -> Self {
         Self {
             target: Some(target.into()),
             context: ErrContext::default(),
         }
     }
-    pub fn with<S: Into<String>>(&mut self, msg: S) {
-        self.context.items.push(msg.into());
+    pub fn with<S1: Into<String>, S2: Into<String>>(&mut self, key: S1, val: S2) {
+        self.context.items.push((key.into(), val.into()));
     }
 }
 
@@ -46,11 +52,11 @@ impl From<&WithContext> for WithContext {
 
 #[derive(Default, Error, Debug, Clone, PartialEq)]
 pub struct ErrContext {
-    pub items: Vec<String>,
+    pub items: Vec<(String, String)>,
 }
 
 pub trait ContextAdd<T> {
-    fn add_context(&mut self, msg: T);
+    fn add_context(&mut self, val: T);
 }
 
 impl Display for ErrContext {
@@ -58,8 +64,8 @@ impl Display for ErrContext {
         if !self.items.is_empty() {
             writeln!(f, "\nerror context:")?;
         }
-        for i in &self.items {
-            writeln!(f, "\t{}", i)?;
+        for (k, v) in &self.items {
+            writeln!(f, "\t{} : {}", k, v)?;
         }
         Ok(())
     }

@@ -13,15 +13,7 @@ where
     E: Display,
 {
     fn assert(self, msg: &str) -> T {
-        match self {
-            Ok(t) => t,
-            Err(e) => {
-                //assert!(false,"{}\n{}",msg,e);
-                unreachable!("result assert fail! {}\n{}", msg, e);
-                //panic!()
-                //panic!("called `Result::unwrap()` on an `Err` value", &e),
-            }
-        }
+        self.unwrap_or_else(|e| panic!("Assertion failed: {}\nError: {}", msg, e))
     }
 }
 
@@ -30,12 +22,7 @@ where
     E: Display,
 {
     fn assert(self) -> T {
-        match self {
-            Ok(t) => t,
-            Err(e) => {
-                unreachable!("result assert fail! \n{}", e);
-            }
-        }
+        self.unwrap_or_else(|e| panic!("Assertion failed \nError: {}", e))
     }
 }
 
