@@ -7,7 +7,7 @@ description = "Error handling utilities for Orion projects"
 license = "MIT"  # 选择你的协议
 repository = "https://github.com/yourusername/orion-error"
 keywords = ["error", "utilities"]
-categories = ["error-handling"]
+categories = ["Rust patterns"]
 
 [dependencies]
 thiserror = "~2.0"
