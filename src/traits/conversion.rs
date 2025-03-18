@@ -1,10 +1,41 @@
-use std::fmt::Display;
+use crate::{DomainReason, StructError, StructReason, core::stcerr_conv_from};
 
+pub trait ErrorConv<T, R: DomainReason>: Sized {
+    fn err_conv(self) -> Result<T, StructError<R>>;
+}
+
+impl<T, R1, R2> ErrorConv<T, R2> for Result<T, StructError<R1>>
+where
+    R1: DomainReason,
+    R2: DomainReason,
+    StructReason<R2>: From<R1>,
+{
+    fn err_conv(self) -> Result<T, StructError<R2>> {
+        match self {
+            Ok(o) => Ok(o),
+            Err(e) => Err(stcerr_conv_from::<R1, R2>(e)),
+        }
+    }
+}
+
+/*
+impl<R1, R2> From<StructError<R1>> for StructError<R2>
+where
+    R1: Into<StructReason<R2>>,
+{
+    fn from(err: StructError<R1>) -> Self {
+        StructError {
+            reason: err.reason.into(),
+            context: err.context,
+        }
+    }
+}
+*/
+/*
 use crate::{
     SeResult,
     core::{DomainFrom, DomainReason, StructError, StructReason, UvsReason},
 };
-
 pub trait ErrorConvDomain<T, R>
 where
     R: DomainReason,
@@ -56,3 +87,5 @@ where
         }
     }
 }
+
+*/

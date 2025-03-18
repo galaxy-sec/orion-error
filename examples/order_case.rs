@@ -2,10 +2,9 @@
 // 用例包括: order_service, order_store, order_txt 相关概念。
 // 产生错语的原因可能： order_txt 格式错语， 客户帐户资金不足、 order_store 的空间不足等
 
-// orion-error/examples/order_case.rs
 use orion_error::{
-    DomainFrom, DomainReason, ErrorCode, ErrorOwe, StructError, StructReason, UvsReason,
-    UvsReasonFrom, WithTarget, stc_err_conv,
+    DomainFrom, DomainReason, ErrorCode, ErrorConv, ErrorOwe, ErrorWith, StructError, StructReason,
+    UvsReason, UvsReasonFrom, WithContext,
 };
 use parse_display_derive::Display;
 use std::{
@@ -15,7 +14,7 @@ use std::{
 
 // ========== 领域错误定义 ==========
 #[derive(Debug, PartialEq, Clone)]
-enum OrderReason {
+pub enum OrderReason {
     FormatError,
     InsufficientFunds,
     StorageFull,
@@ -29,7 +28,7 @@ impl ErrorCode for OrderReason {
 
 #[derive(Debug, PartialEq, Clone, Display)]
 #[display(style = "snake_case")]
-enum StoreReason {
+pub enum StoreReason {
     StorageFull,
 }
 impl ErrorCode for StoreReason {
@@ -40,7 +39,7 @@ impl ErrorCode for StoreReason {
 
 #[derive(Debug, PartialEq, Clone, Display)]
 #[display(style = "snake_case")]
-enum ParseReason {
+pub enum ParseReason {
     FormatError,
 }
 impl ErrorCode for ParseReason {
@@ -51,17 +50,13 @@ impl ErrorCode for ParseReason {
 
 #[derive(Debug, PartialEq, Clone, Display)]
 #[display(style = "snake_case")]
-enum UserReason {
-    InsufficientFunds,
+pub enum UserReason {
     NotFound,
 }
 
 impl From<UserReason> for StructReason<OrderReason> {
     fn from(value: UserReason) -> Self {
         match value {
-            UserReason::InsufficientFunds => {
-                StructReason::from(UvsReason::from_biz("logic fail".to_string()))
-            }
             UserReason::NotFound => {
                 StructReason::from(UvsReason::from_biz("logic fail".to_string()))
             }
@@ -83,10 +78,10 @@ impl DomainReason for OrderReason {}
 impl DomainReason for StoreReason {}
 impl DomainReason for ParseReason {}
 impl DomainReason for UserReason {}
-type OrderError = StructError<OrderReason>;
-type StoreError = StructError<StoreReason>;
-type ParseError = StructError<ParseReason>;
-type UserError = StructError<UserReason>;
+pub type OrderError = StructError<OrderReason>;
+pub type StoreError = StructError<StoreReason>;
+pub type ParseError = StructError<ParseReason>;
+pub type UserError = StructError<UserReason>;
 
 impl Display for OrderReason {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -117,10 +112,10 @@ pub mod storage {
     pub static STORAGE_CAPACITY: AtomicUsize = AtomicUsize::new(2);
     static ORDERS: Mutex<Vec<Order>> = Mutex::new(Vec::new());
     pub fn save(order: Order) -> Result<(), StoreError> {
-        save_to_db(order).owe_sys()
+        save_db_impl(order).owe_sys()
     }
 
-    fn save_to_db(order: Order) -> Result<(), std::io::Error> {
+    fn save_db_impl(order: Order) -> Result<(), std::io::Error> {
         let capacity = STORAGE_CAPACITY.load(Ordering::Relaxed);
         let mut orders = ORDERS.lock().map_err(|_| {
             std::io::Error::new(std::io::ErrorKind::Other, "Failed to lock orders mutex")
@@ -147,11 +142,16 @@ impl OrderService {
         amount: f64,
         order_txt: &str,
     ) -> Result<storage::Order, OrderError> {
+        let mut ctx = WithContext::want("place_order");
+        ctx.with(order_txt);
         let order = Self::parse_order(order_txt, amount)
             .want("解析订单")
+            .with(&ctx)
             .owe_biz()?;
 
-        Self::validate_funds(user_id, order.amount).want("验证资金")?;
+        Self::validate_funds(user_id, order.amount)
+            .want("验证资金")
+            .with(&ctx)?;
 
         let order = storage::Order { user_id, amount };
         Self::save_order(order).want("保存订单")
@@ -172,7 +172,8 @@ impl OrderService {
     }
 
     fn validate_funds(user_id: u32, amount: f64) -> Result<(), OrderError> {
-        let balance = Self::get_balance(user_id).map_err(stc_err_conv)?;
+        //let balance = Self::get_balance(user_id).map_err(stc_err_conv)?;
+        let balance = Self::get_balance(user_id).err_conv()?;
 
         if balance < amount {
             StructError::from(OrderReason::InsufficientFunds)
@@ -194,7 +195,7 @@ impl OrderService {
     }
 
     fn save_order(order: storage::Order) -> Result<storage::Order, OrderError> {
-        storage::save(order.clone()).map_err(stc_err_conv)?;
+        storage::save(order.clone()).err_conv()?;
         Ok(order)
     }
 }

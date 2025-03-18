@@ -1,4 +1,4 @@
-use std::{error::Error, fmt::Display};
+use std::fmt::Display;
 use thiserror::Error;
 
 use super::ErrorCode;
@@ -76,19 +76,6 @@ impl From<String> for ErrorPayload {
     fn from(value: String) -> Self {
         ErrorPayload(value)
     }
-}
-
-macro_rules! impl_reason_convert {
-    ($variant:ident, $method:ident) => {
-        fn $method<E: Display>(e: E) -> Self {
-            UvsReason::$variant(ErrorPayload::from(e.to_string()))
-        }
-    };
-    ($variant:ident, $method:ident, $pos:ty) => {
-        fn $method<S: Into<String>>(info: S, pos: Option<usize>) -> Self {
-            UvsReason::$variant(ErrorPayload::new(info), pos)
-        }
-    };
 }
 
 impl UvsReasonFrom<UvsReason, String> for UvsReason {

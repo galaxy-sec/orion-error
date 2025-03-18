@@ -1,9 +1,6 @@
 use std::fmt::Display;
 
-use crate::{
-    SeResult,
-    traits::{ErrorPosition, WithTarget},
-};
+use crate::ErrorWith;
 
 use super::{
     ContextAdd,
@@ -67,6 +64,33 @@ pub struct StructError<T: DomainReason> {
     context: Box<ErrContext>,
 }
 
+pub fn stcreason_conv_from<R1, R2>(other: StructReason<R1>) -> StructReason<R2>
+where
+    R1: DomainReason,
+    R2: DomainReason,
+    StructReason<R2>: From<R1>,
+{
+    match other {
+        StructReason::Universal(uvs_reason) => StructReason::Universal(uvs_reason),
+        StructReason::Domain(domain) => StructReason::from(domain),
+    }
+}
+
+pub fn stcerr_conv_from<R1, R2>(other: StructError<R1>) -> StructError<R2>
+where
+    R1: DomainReason,
+    R2: DomainReason,
+    StructReason<R2>: From<R1>,
+{
+    StructError {
+        reason: Box::new(stcreason_conv_from(*other.reason)),
+        detail: other.detail,
+        position: other.position,
+        target: other.target,
+        context: other.context,
+    }
+}
+
 impl<T: DomainReason> StructError<T> {
     pub fn new(reason: StructReason<T>) -> Self {
         Self {
@@ -128,13 +152,6 @@ impl<T: DomainReason> ContextAdd<&WithContext> for StructError<T> {
     }
 }
 
-impl<T: DomainReason> ErrorPosition for StructError<T> {
-    fn position<S: Into<String>>(mut self, pos: S) -> Self {
-        self.position = Some(pos.into());
-        self
-    }
-}
-
 impl<T: std::fmt::Display + DomainReason> Display for StructError<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match (&self.target, &self.detail) {
@@ -158,9 +175,18 @@ impl<T: std::fmt::Display + DomainReason> Display for StructError<T> {
     }
 }
 
-impl<T: DomainReason> WithTarget for StructError<T> {
+impl<T: DomainReason> ErrorWith for StructError<T> {
     fn want<S: Into<String>>(mut self, desc: S) -> Self {
         self.target = Some(desc.into());
+        self
+    }
+    fn position<S: Into<String>>(mut self, pos: S) -> Self {
+        self.position = Some(pos.into());
+        self
+    }
+
+    fn with<C: Into<WithContext>>(mut self, ctx: C) -> Self {
+        self.add_context(&ctx.into());
         self
     }
 }
@@ -214,7 +240,7 @@ where
         ste_from_uvs(reason)
     }
 
-    pub fn err_from_uvs<T, R1>(e: StructError<R1>, reason: UvsReason) -> SeResult<T, R>
+    pub fn err_from_uvs<T, R1>(e: StructError<R1>, reason: UvsReason) -> Result<T, StructError<R>>
     where
         R1: DomainReason,
     {

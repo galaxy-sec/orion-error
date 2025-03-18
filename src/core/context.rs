@@ -1,5 +1,5 @@
 use derive_getters::Getters;
-use std::fmt::Display;
+use std::{env::var, fmt::Display};
 use thiserror::Error;
 
 #[derive(Debug, Clone, Getters)]
@@ -15,9 +15,32 @@ impl WithContext {
             context: ErrContext::default(),
         }
     }
-    pub fn with<S: Into<String>>(mut self, msg: S) -> Self {
+    pub fn with<S: Into<String>>(&mut self, msg: S) {
         self.context.items.push(msg.into());
-        self
+    }
+}
+
+impl From<String> for WithContext {
+    fn from(value: String) -> Self {
+        Self {
+            target: Some(value),
+            context: ErrContext::default(),
+        }
+    }
+}
+
+impl From<&str> for WithContext {
+    fn from(value: &str) -> Self {
+        Self {
+            target: Some(value.to_string()),
+            context: ErrContext::default(),
+        }
+    }
+}
+
+impl From<&WithContext> for WithContext {
+    fn from(value: &WithContext) -> Self {
+        value.clone()
     }
 }
 
