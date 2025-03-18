@@ -15,9 +15,9 @@
 #### 2. 按错误层级分类
 ```mermaid
 graph TD
-    RootError[OrderError] --> ParseError
-    RootError --> UserError
-    RootError --> StoreError
+    OrderError --> ParseError
+    OrderError --> UserError
+    OrderError --> StoreError
     StoreError --> DatabaseError
     StoreError --> FileSystemError
 ```
