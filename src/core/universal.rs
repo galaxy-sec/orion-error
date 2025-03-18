@@ -94,7 +94,7 @@ impl UvsReasonFrom<UvsReason, String> for UvsReason {
     }
 
     fn from_conf(info: String) -> Self {
-        UvsReason::ConfError(ConfRSEnum::Core(info.into()))
+        UvsReason::ConfError(ConfRSEnum::Core(info))
     }
 
     fn from_res(info: String) -> Self {
