@@ -28,34 +28,161 @@
   parse-display = "0.7"  # 可选，用于错误展示
   ```
 
-## 错误处理设计
 
-### 错误的归集
-上层错误、是由下层多种错误造成，
 
-例如：
+## 核心概念
 
+### 错误定义
+使用枚举定义领域错误类型，实现 `DomainReason` trait：
+```rust
+#[derive(Debug, Display)]
+enum OrderReason {
+    InsufficientFunds,
+    UserNotFound,
+}
+
+impl DomainReason for OrderReason {}
 ```
 
-OrderError
-|
-|---- ParseError
-|
-|---- UserError
-|
-|---- StoreError
+### 错误构造
+使用链式调用构建错误上下文：
+```rust
+validate_user(user_id)
+    .want("验证用户")          // 添加操作描述
+    .with_detail("uid:123")    // 添加调试细节
+    .owe(OrderError::UserNotFound) // 转换为上层错误类型
 ```
-
 
 ### 错误处理
+#### 转换策略
+| 方法         | 说明                          |
+|--------------|-----------------------------|
+| `.owe()`     | 转换为指定业务错误，保留原始错误链   |
+| `.owe_sys()` | 标记为系统级错误                |
+| `.err_conv()`| 自动推导错误类型转换             |
 
-* 向上抛出
-* 重试
-* 忽略
+#### 处理模式
+```rust
+// 模式1：直接转换
+parse_input().map_err(|e| e.owe(OrderError::ParseFailed))?;
 
+// 模式2：添加上下文
+db.query()
+   .want("读取订单数据")
+   .with_detail(format!("order_id={}", id))
+   .err_conv()?;
+```
+## 完整示例
+见 [examples/order_case.rs](examples/order_case.rs)
 
-#### 错误处理层级
+## 错误展示
+内置 Display 实现可展示完整错误链：
+```text
+[错误代码 500] 账户余额不足
+Caused by:
+  0: 用户不存在 (代码103)
+     详情: uid:456
+     上下文: "验证资金"
+  1: 存储空间不足 (代码500)
+     上下文: "保存订单"
+```
+## 贡献指南
+欢迎提交 issue 和 PR，请遵循现有代码风格
 
-#### 向上归集
+## 许可证
+MIT License
 
-实现细节的错误，对上层逻辑已失去意义，无法识别与解决。
+---
+
+# orion-error-en <a name="orion-error-en"></a>
+
+Structured error handling library for building large-scale applications, providing complete error context tracking and flexible aggregation strategies.
+
+## Features
+
+- **Structured Errors**: Support multi-layer error aggregation with full error chain
+- **Error Classification**:
+  - Business Error (BizError) - Domain-specific recoverable errors
+  - System Error (SysError) - Infrastructure-level critical errors
+- **Context Tracing**: Support multi-level context information
+- **Error Codes**: Customizable error code system
+- **Error Conversion**: Multiple conversion strategies:
+  ```rust
+  .owe()      // Convert to business error
+  .owe_sys()  // Mark as system error
+  .err_conv() // Automatic type conversion
+  ```
+
+## Installation
+
+Add to Cargo.toml:
+```toml
+[dependencies]
+orion-error = "0.3"
+parse-display = "0.7"  # Optional for error display
+```
+
+## Core Concepts
+
+### Error Definition
+Define domain errors with enum and implement `DomainReason`:
+```rust
+#[derive(Debug, Display)]
+enum OrderReason {
+    InsufficientFunds,
+    UserNotFound,
+}
+
+impl DomainReason for OrderReason {}
+```
+
+### Error Construction
+Build error context with chaining:
+```rust
+validate_user(user_id)
+    .want("Validate user")       // Add operation description
+    .with_detail("uid:123")      // Add debug details
+    .owe(OrderError::UserNotFound) // Convert to upper error type
+```
+
+### Error Handling
+#### Conversion Strategies
+| Method        | Description                      |
+|---------------|----------------------------------|
+| `.owe()`      | Convert to specific biz error    |
+| `.owe_sys()`  | Mark as system error             |
+| `.err_conv()` | Auto-detect error type conversion|
+
+#### Handling Patterns
+```rust
+// Pattern 1: Direct conversion
+parse_input().map_err(|e| e.owe(OrderError::ParseFailed))?;
+
+// Pattern 2: Add context
+db.query()
+   .want("Read order data")
+   .with_detail(format!("order_id={}", id))
+   .err_conv()?;
+```
+
+## Full Example
+See [examples/order_case.rs](examples/order_case.rs)
+
+## Error Display
+Built-in Display implementation shows full error chain:
+```text
+[Error Code 500] Insufficient funds
+Caused by:
+  0: User not found (code103)
+     Detail: uid:456
+     Context: "Validate funds"
+  1: Storage full (code500)
+     Context: "Save order"
+```
+
+## Contributing
+Issues and PRs are welcome. Please follow existing code style.
+
+## License
+MIT License
+```
