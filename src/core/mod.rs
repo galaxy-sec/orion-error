@@ -1,3 +1,4 @@
+mod case;
 mod context;
 mod domain;
 mod error;

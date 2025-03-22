@@ -115,8 +115,8 @@ impl<T: DomainReason> StructError<T> {
 
     /// 使用示例
     ///self.with_position(location!());
-    pub fn with_position(mut self, position: Option<String>) -> Self {
-        self.position = position;
+    pub fn with_position(mut self, position: impl Into<String>) -> Self {
+        self.position = Some(position.into());
         self
     }
     pub fn with_context(mut self, context: ErrContext) -> Self {
@@ -133,7 +133,7 @@ impl<T: DomainReason> StructError<T> {
         Err(self)
     }
     /// 创建领域错误快捷方法
-    pub fn domain(reason: impl Into<T>) -> Self {
+    pub fn domain(reason: impl Into<T>) -> StructError<T> {
         Self::default_other(StructReason::Domain(reason.into()))
     }
 
@@ -174,7 +174,9 @@ impl<S1: Into<String>, S2: Into<String>, T: DomainReason> ContextAdd<(S1, S2)> f
 
 impl<T: DomainReason> ContextAdd<&WithContext> for StructError<T> {
     fn add_context(&mut self, ctx: &WithContext) {
-        self.target = ctx.target().clone();
+        ctx.target()
+            .clone()
+            .map(|target| self.target.replace(target));
         self.context.items.append(&mut ctx.context().items.clone());
     }
 }
