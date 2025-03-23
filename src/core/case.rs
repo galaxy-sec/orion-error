@@ -119,7 +119,7 @@ mod tests {
         let result: Result<(), _> = StructError::<TestDomainReason>::domain(TestDomainReason).err();
 
         // 使用自定义断言trait
-        let _ = result.clone().assert("This should panic with domain error");
+        result.assert("This should panic with domain error");
     }
 
     #[test]
