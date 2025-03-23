@@ -2,7 +2,7 @@ use derive_getters::Getters;
 use std::fmt::Display;
 use thiserror::Error;
 
-#[derive(Debug, Clone, Getters)]
+#[derive(Debug, Clone, Getters, Default)]
 pub struct WithContext {
     target: Option<String>,
     context: ErrContext,

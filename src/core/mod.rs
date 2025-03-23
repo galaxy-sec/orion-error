@@ -2,14 +2,14 @@ mod case;
 mod context;
 mod domain;
 mod error;
+mod reason;
 mod stc_impl;
 //mod target;
 mod universal;
 pub use context::ContextAdd;
 pub use context::WithContext;
 pub use domain::{DomainFrom, DomainReason};
-pub use error::{
-    ErrorCode, StructError, StructErrorTrait, StructReason, convert_error, convert_error_type,
-};
+pub use error::{StructError, StructErrorTrait, convert_error, convert_error_type};
+pub use reason::{ErrorCode, StructReason};
 pub use universal::UvsReason;
 pub use universal::UvsReasonFrom;

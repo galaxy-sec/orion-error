@@ -1,8 +1,9 @@
 use std::fmt::Display;
 
 use super::{
+    StructReason,
     domain::{DomainFrom, DomainReason},
-    error::{StructError, StructReason},
+    error::StructError,
     universal::{ConfRSEnum, ErrorPayload, UvsReason, UvsReasonFrom},
 };
 
@@ -39,7 +40,7 @@ where
 
 impl<R: DomainReason> DomainFrom<R, R> for StructError<R> {
     fn from_domain(reason: R) -> StructError<R> {
-        StructError::new(StructReason::Domain(reason))
+        StructError::from(StructReason::Domain(reason))
     }
     fn err_from_domain<T>(reason: R) -> Result<T, StructError<R>> {
         Err(Self::from_domain(reason))
@@ -53,6 +54,6 @@ where
 {
     fn from_domain(value: (R, E)) -> StructError<R> {
         let detail = format!("{}", value.1);
-        StructError::new(StructReason::Domain(value.0)).with_detail(detail)
+        StructError::from(StructReason::Domain(value.0)).with_detail(detail)
     }
 }

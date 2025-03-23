@@ -20,6 +20,6 @@ where
 
 impl Display for NullReason {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", "NullReason")
+        write!(f, "NullReason")
     }
 }
