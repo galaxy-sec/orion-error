@@ -4,8 +4,8 @@ mod tests {
     use std::fmt::Display;
 
     use crate::{
-        convert_error_type, DomainReason, ErrorCode, ErrorWith, StructError, StructReason,
-        TestAssertWithMsg, UvsReason, WithContext,
+        DomainReason, ErrorCode, ErrorWith, StructError, StructReason, TestAssertWithMsg,
+        UvsReason, WithContext, convert_error_type,
     };
 
     // 测试用领域原因类型
@@ -67,10 +67,11 @@ mod tests {
         let err = StructError::<TestDomainReason>::domain(TestDomainReason).with(ctx);
 
         assert_eq!(err.target(), &Some("user_profile".to_string()));
-        assert!(err
-            .context()
-            .items
-            .contains(&("user_id".into(), "12345".into())));
+        assert!(
+            err.context()
+                .items
+                .contains(&("user_id".into(), "12345".into()))
+        );
     }
 
     #[test]
