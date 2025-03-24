@@ -11,4 +11,5 @@ pub use core::{
 pub use traits::ErrorOwe;
 pub use traits::{ErrorConv, ErrorWith};
 
+pub use core::ErrStrategy;
 pub use testcase::{TestAssert, TestAssertWithMsg};
