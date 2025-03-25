@@ -1,4 +1,4 @@
-use crate::{DomainReason, StructError, StructReason, core::convert_error};
+use crate::{core::convert_error, DomainReason, StructError, StructReason};
 
 pub trait ErrorConv<T, R: DomainReason>: Sized {
     fn err_conv(self) -> Result<T, StructError<R>>;

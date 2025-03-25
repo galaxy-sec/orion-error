@@ -1,40 +1,69 @@
 use std::fmt::Display;
 
 use super::{
-    StructReason,
     domain::{DomainFrom, DomainReason},
     error::StructError,
-    universal::{ConfRSEnum, ErrorPayload, UvsReason, UvsReasonFrom},
+    universal::{ConfErrReason, ErrorPayload, UvsConfFrom, UvsDataFrom, UvsReason},
+    StructReason, UvsBizFrom, UvsLogicFrom, UvsResFrom, UvsRuleFrom, UvsSysFrom,
 };
 
-impl<R> UvsReasonFrom<StructError<R>, String> for StructError<R>
+impl<R> UvsConfFrom<StructError<R>, String> for StructError<R>
+where
+    R: DomainReason,
+{
+    fn from_conf(info: String) -> Self {
+        Self::from_uvs_rs(UvsReason::ConfError(ConfErrReason::Core(info)))
+    }
+}
+
+impl<R> UvsDataFrom<StructError<R>, String> for StructError<R>
+where
+    R: DomainReason,
+{
+    fn from_data(info: String, pos: Option<usize>) -> Self {
+        Self::from_uvs_rs(UvsReason::DataError(ErrorPayload::new(info), pos))
+    }
+}
+
+impl<R> UvsSysFrom<StructError<R>, String> for StructError<R>
 where
     R: DomainReason,
 {
     fn from_sys(info: String) -> Self {
         Self::from_uvs_rs(UvsReason::SysError(ErrorPayload::new(info)))
     }
+}
 
+impl<R> UvsRuleFrom<StructError<R>, String> for StructError<R>
+where
+    R: DomainReason,
+{
     fn from_rule(info: String) -> Self {
         Self::from_uvs_rs(UvsReason::RuleError(ErrorPayload::new(info)))
     }
+}
+impl<R> UvsLogicFrom<StructError<R>, String> for StructError<R>
+where
+    R: DomainReason,
+{
     fn from_logic(info: String) -> Self {
         Self::from_uvs_rs(UvsReason::LogicError(ErrorPayload::new(info)))
     }
+}
+impl<R> UvsBizFrom<StructError<R>, String> for StructError<R>
+where
+    R: DomainReason,
+{
     fn from_biz(info: String) -> Self {
         Self::from_uvs_rs(UvsReason::BizError(ErrorPayload::new(info)))
     }
-
-    fn from_conf(info: String) -> Self {
-        Self::from_uvs_rs(UvsReason::ConfError(ConfRSEnum::Core(info)))
-    }
-
+}
+impl<R> UvsResFrom<StructError<R>, String> for StructError<R>
+where
+    R: DomainReason,
+{
     fn from_res(info: String) -> Self {
         Self::from_uvs_rs(UvsReason::ResError(ErrorPayload::new(info)))
-    }
-
-    fn from_data(info: String, pos: Option<usize>) -> Self {
-        Self::from_uvs_rs(UvsReason::DataError(ErrorPayload::new(info), pos))
     }
 }
 

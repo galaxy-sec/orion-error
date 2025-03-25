@@ -4,7 +4,7 @@ use thiserror::Error;
 use super::ErrorCode;
 
 #[derive(Debug, Error, PartialEq, Clone)]
-pub enum ConfRSEnum {
+pub enum ConfErrReason {
     #[error("core config > {0}")]
     Core(String),
     #[error("feature config error > {0}")]
@@ -32,7 +32,7 @@ pub enum UvsReason {
     #[error("res error << {0}")]
     ResError(ErrorPayload),
     #[error("conf error << {0}")]
-    ConfError(ConfRSEnum),
+    ConfError(ConfErrReason),
     #[error("rule error << {0}")]
     RuleError(ErrorPayload),
     #[error("privacy error << {0}")]
@@ -41,25 +41,40 @@ pub enum UvsReason {
 
 impl UvsReason {
     pub fn core_conf<S: Into<String>>(msg: S) -> Self {
-        Self::ConfError(ConfRSEnum::Core(msg.into()))
+        Self::ConfError(ConfErrReason::Core(msg.into()))
     }
     pub fn feature_conf<S: Into<String>>(msg: S) -> Self {
-        Self::ConfError(ConfRSEnum::Feature(msg.into()))
+        Self::ConfError(ConfErrReason::Feature(msg.into()))
     }
     pub fn dynamic_conf<S: Into<String>>(msg: S) -> Self {
-        Self::ConfError(ConfRSEnum::Dynamic(msg.into()))
+        Self::ConfError(ConfErrReason::Dynamic(msg.into()))
     }
 }
 
-pub trait UvsReasonFrom<T, S> {
-    fn from_sys(info: S) -> T;
-    fn from_rule(info: S) -> T;
-    fn from_logic(info: S) -> T;
-    fn from_biz(info: S) -> T;
-    //fn from_conf_err_msg<E: Display>(e: E, msg: String) -> T;
+pub trait UvsConfFrom<T, S> {
     fn from_conf(info: S) -> T;
-    fn from_res(info: S) -> T;
+}
+
+pub trait UvsDataFrom<T, S> {
     fn from_data(info: S, pos: Option<usize>) -> T;
+}
+
+pub trait UvsSysFrom<T, S> {
+    fn from_sys(info: S) -> T;
+}
+pub trait UvsRuleFrom<T, S> {
+    fn from_rule(info: S) -> T;
+}
+pub trait UvsLogicFrom<T, S> {
+    fn from_logic(info: S) -> T;
+}
+
+pub trait UvsBizFrom<T, S> {
+    fn from_biz(info: S) -> T;
+}
+
+pub trait UvsResFrom<T, S> {
+    fn from_res(info: S) -> T;
 }
 
 /// 强类型错误负载包装
@@ -82,31 +97,50 @@ impl From<String> for ErrorPayload {
         Self::new(value)
     }
 }
+impl UvsConfFrom<UvsReason, String> for UvsReason {
+    fn from_conf(info: String) -> Self {
+        UvsReason::ConfError(ConfErrReason::Core(info))
+    }
+}
 
-impl UvsReasonFrom<UvsReason, String> for UvsReason {
+impl UvsConfFrom<UvsReason, ConfErrReason> for UvsReason {
+    fn from_conf(reason: ConfErrReason) -> Self {
+        UvsReason::ConfError(reason)
+    }
+}
+
+impl UvsDataFrom<UvsReason, String> for UvsReason {
+    fn from_data(info: String, pos: Option<usize>) -> Self {
+        UvsReason::DataError(ErrorPayload::new(info), pos)
+    }
+}
+
+impl UvsSysFrom<UvsReason, String> for UvsReason {
     fn from_sys(info: String) -> Self {
         UvsReason::SysError(ErrorPayload::new(info))
     }
+}
+impl UvsBizFrom<UvsReason, String> for UvsReason {
+    fn from_biz(info: String) -> Self {
+        UvsReason::SysError(ErrorPayload::new(info))
+    }
+}
 
+impl UvsRuleFrom<UvsReason, String> for UvsReason {
     fn from_rule(info: String) -> Self {
         UvsReason::RuleError(ErrorPayload::new(info))
     }
+}
+
+impl UvsLogicFrom<UvsReason, String> for UvsReason {
     fn from_logic(info: String) -> Self {
         UvsReason::LogicError(ErrorPayload::new(info))
     }
-    fn from_biz(info: String) -> Self {
-        UvsReason::BizError(ErrorPayload::new(info))
-    }
+}
 
-    fn from_conf(info: String) -> Self {
-        UvsReason::ConfError(ConfRSEnum::Core(info))
-    }
-
+impl UvsResFrom<UvsReason, String> for UvsReason {
     fn from_res(info: String) -> Self {
         UvsReason::ResError(ErrorPayload::new(info))
-    }
-    fn from_data(info: String, pos: Option<usize>) -> Self {
-        UvsReason::DataError(ErrorPayload::new(info), pos)
     }
 }
 

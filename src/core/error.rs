@@ -3,11 +3,11 @@ use std::{fmt::Display, ops::Deref};
 use crate::ErrorWith;
 
 use super::{
-    ContextAdd, ErrorCode, StructReason,
     context::{ErrContext, WithContext},
     domain::DomainReason,
     reason::convert_reason,
     universal::UvsReason,
+    ContextAdd, ErrorCode, StructReason,
 };
 use derive_getters::Getters;
 use thiserror::Error;

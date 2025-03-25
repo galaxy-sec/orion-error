@@ -1,6 +1,6 @@
 use crate::{
-    StructError,
-    core::{DomainFrom, DomainReason, UvsReason, UvsReasonFrom},
+    core::{DomainFrom, DomainReason, UvsReason},
+    StructError, UvsBizFrom, UvsDataFrom, UvsResFrom, UvsRuleFrom, UvsSysFrom,
 };
 
 /// 非结构错误(StructError) 转化为结构错误。

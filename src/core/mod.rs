@@ -9,10 +9,12 @@ mod universal;
 pub use context::ContextAdd;
 pub use context::WithContext;
 pub use domain::{DomainFrom, DomainReason};
-pub use error::{StructError, StructErrorTrait, convert_error, convert_error_type};
+pub use error::{convert_error, convert_error_type, StructError, StructErrorTrait};
 pub use reason::{ErrorCode, StructReason};
-pub use universal::UvsReason;
-pub use universal::UvsReasonFrom;
+pub use universal::{
+    UvsBizFrom, UvsConfFrom, UvsDataFrom, UvsLogicFrom, UvsReason, UvsResFrom, UvsRuleFrom,
+    UvsSysFrom,
+};
 
 pub enum ErrStrategy {
     /// 带退避策略的重试（包含基本参数）
