@@ -10,7 +10,7 @@ pub use core::{
     UvsRuleFrom, UvsSysFrom,
 };
 pub use traits::ErrorOwe;
-pub use traits::{ErrorConv, ErrorWith};
+pub use traits::{ConvStructError, ErrorConv, ErrorWith};
 
 pub use core::ErrStrategy;
 pub use testcase::{TestAssert, TestAssertWithMsg};

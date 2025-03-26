@@ -3,5 +3,5 @@ mod conversion;
 mod owenance;
 
 pub use contextual::ErrorWith;
-pub use conversion::ErrorConv;
+pub use conversion::{ConvStructError, ErrorConv};
 pub use owenance::ErrorOwe;
