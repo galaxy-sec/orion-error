@@ -31,3 +31,11 @@ where
         self.unwrap_or_else(|e| panic!("[TEST ASSERTION FAILED] {} \n Error details: {}", msg, e))
     }
 }
+
+impl<T> TestAssert for Option<T> {
+    type Output = T;
+
+    fn assert(self) -> T {
+        self.unwrap_or_else(|| panic!("[OPTION ASSERTION FAILED] ",))
+    }
+}
