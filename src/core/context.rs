@@ -1,4 +1,5 @@
 use derive_getters::Getters;
+use serde::Serialize;
 use std::fmt::Display;
 use thiserror::Error;
 
@@ -50,7 +51,7 @@ impl From<&WithContext> for WithContext {
     }
 }
 
-#[derive(Default, Error, Debug, Clone, PartialEq)]
+#[derive(Default, Error, Debug, Clone, PartialEq, Serialize)]
 pub struct ErrContext {
     pub items: Vec<(String, String)>,
 }

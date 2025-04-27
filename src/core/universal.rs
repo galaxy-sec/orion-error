@@ -1,9 +1,10 @@
+use serde::Serialize;
 use std::fmt::Display;
 use thiserror::Error;
 
 use super::ErrorCode;
 
-#[derive(Debug, Error, PartialEq, Clone)]
+#[derive(Debug, Error, PartialEq, Clone, Serialize)]
 pub enum ConfErrReason {
     #[error("core config > {0}")]
     Core(String),
@@ -19,7 +20,7 @@ pub enum ConfErrReason {
 /// # Variants
 /// - `LogicError`: Indicates business logic violations
 /// - `SysError`: Represents system-level failures
-#[derive(Debug, Error, PartialEq, Clone)]
+#[derive(Debug, Error, PartialEq, Clone, Serialize)]
 pub enum UvsReason {
     #[error("logic error << {0}")]
     LogicError(ErrorPayload),
@@ -78,7 +79,7 @@ pub trait UvsResFrom<T, S> {
 }
 
 /// 强类型错误负载包装
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Serialize)]
 pub struct ErrorPayload(String);
 
 impl ErrorPayload {

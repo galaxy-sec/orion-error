@@ -3,13 +3,15 @@ mod tests {
 
     use std::fmt::Display;
 
+    use serde::Serialize;
+
     use crate::{
         convert_error_type, DomainReason, ErrorCode, ErrorWith, StructError, StructReason,
         TestAssertWithMsg, UvsReason, WithContext,
     };
 
     // 测试用领域原因类型
-    #[derive(Debug, PartialEq, Clone)]
+    #[derive(Debug, PartialEq, Clone, Serialize)]
     struct TestDomainReason;
 
     impl DomainReason for TestDomainReason {}
@@ -20,7 +22,7 @@ mod tests {
     }
 
     // 另一个领域原因类型用于转换测试
-    #[derive(Debug, PartialEq, Clone)]
+    #[derive(Debug, PartialEq, Clone, Serialize)]
     struct OtherDomainReason;
 
     impl Display for OtherDomainReason {

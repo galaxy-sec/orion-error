@@ -1,10 +1,11 @@
+use serde::Serialize;
 use thiserror::Error;
 
 use super::{DomainReason, UvsReason};
 
 /// Represents the root cause of an error, which can be either
 /// a domain-specific reason or a universal system reason.
-#[derive(Error, Debug, Clone, PartialEq)]
+#[derive(Error, Debug, Clone, PartialEq, Serialize)]
 pub enum StructReason<T: DomainReason> {
     #[error("{0}")]
     Universal(UvsReason),

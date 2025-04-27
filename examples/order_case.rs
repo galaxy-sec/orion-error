@@ -7,13 +7,14 @@ use orion_error::{
     UvsBizFrom, UvsReason, UvsSysFrom, WithContext,
 };
 use parse_display_derive::Display;
+use serde::Serialize;
 use std::{
     fmt::{Display, Formatter},
     sync::atomic::Ordering,
 };
 
 // ========== 领域错误定义 ==========
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Serialize)]
 pub enum OrderReason {
     FormatError,
     InsufficientFunds,
@@ -26,7 +27,7 @@ impl ErrorCode for OrderReason {
     }
 }
 
-#[derive(Debug, PartialEq, Clone, Display)]
+#[derive(Debug, PartialEq, Clone, Display, Serialize)]
 #[display(style = "snake_case")]
 pub enum StoreReason {
     StorageFull,
@@ -37,7 +38,7 @@ impl ErrorCode for StoreReason {
     }
 }
 
-#[derive(Debug, PartialEq, Clone, Display)]
+#[derive(Debug, PartialEq, Clone, Display, Serialize)]
 #[display(style = "snake_case")]
 pub enum ParseReason {
     FormatError,
@@ -48,7 +49,7 @@ impl ErrorCode for ParseReason {
     }
 }
 
-#[derive(Debug, PartialEq, Clone, Display)]
+#[derive(Debug, PartialEq, Clone, Display, Serialize)]
 #[display(style = "snake_case")]
 pub enum UserReason {
     NotFound,

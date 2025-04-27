@@ -1,10 +1,12 @@
 use std::fmt::Display;
 
+use serde::Serialize;
+
 use super::error::StructError;
 
-pub trait DomainReason: PartialEq + Display {}
+pub trait DomainReason: PartialEq + Display + Serialize {}
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Serialize)]
 pub struct NullReason {}
 impl DomainReason for NullReason {}
 

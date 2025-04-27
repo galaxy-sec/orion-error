@@ -10,6 +10,7 @@ use super::{
     ContextAdd, ErrorCode, StructReason,
 };
 use derive_getters::Getters;
+use serde::Serialize;
 use thiserror::Error;
 
 #[macro_export]
@@ -36,6 +37,15 @@ impl<T: DomainReason + ErrorCode> ErrorCode for StructError<T> {
 #[derive(Error, Debug, Clone, PartialEq, Getters)]
 pub struct StructError<T: DomainReason> {
     imp: Box<StructErrorImpl<T>>,
+}
+
+impl<T: DomainReason> Serialize for StructError<T> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        self.imp.serialize(serializer)
+    }
 }
 
 impl<T: DomainReason> Deref for StructError<T> {
@@ -73,7 +83,7 @@ where
     }
 }
 
-#[derive(Error, Debug, Clone, PartialEq, Getters)]
+#[derive(Error, Debug, Clone, PartialEq, Getters, Serialize)]
 pub struct StructErrorImpl<T: DomainReason> {
     reason: StructReason<T>,
     detail: Option<String>,
@@ -267,5 +277,75 @@ where
         R1: DomainReason,
     {
         Err(Self::from_uvs(e, reason))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+    use serde_json::json;
+
+    // Define a simple DomainReason for testing
+    #[derive(Debug, Clone, PartialEq, Serialize)]
+    enum TestDomainReason {
+        TestError,
+    }
+    impl Display for TestDomainReason {
+        fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            todo!()
+        }
+    }
+
+    impl DomainReason for TestDomainReason {}
+    impl ErrorCode for TestDomainReason {
+        fn error_code(&self) -> i32 {
+            match self {
+                TestDomainReason::TestError => 1001,
+            }
+        }
+    }
+
+    #[test]
+    fn test_struct_error_serialization() {
+        // Create a context
+        let mut context = ErrContext::default();
+        context
+            .items
+            .push(("key1".to_string(), "value1".to_string()));
+        context
+            .items
+            .push(("key2".to_string(), "value2".to_string()));
+
+        // Create a StructError
+        let error = StructError::new(
+            StructReason::Domain(TestDomainReason::TestError),
+            Some("Detailed error description".to_string()),
+            Some("file.rs:10:5".to_string()),
+            Some("target_resource".to_string()),
+            context,
+        );
+
+        // Serialize to JSON
+        let json_value = serde_json::to_value(&error).unwrap();
+        println!("{}", json_value);
+
+        // Expected JSON structure
+        let expected = json!({
+            "reason": {
+                "Domain": "TestError"
+            },
+            "detail": "Detailed error description",
+            "position": "file.rs:10:5",
+            "target": "target_resource",
+            "context": {
+                "items": [
+                    ["key1", "value1"],
+                    ["key2", "value2"]
+                ]
+            }
+        });
+
+        assert_eq!(json_value, expected);
     }
 }
