@@ -36,11 +36,20 @@ impl From<String> for WithContext {
     }
 }
 
-impl From<&str> for WithContext {
-    fn from(value: &str) -> Self {
+impl From<(String, String)> for WithContext {
+    fn from(value: (String, String)) -> Self {
         Self {
             target: None,
-            context: ErrContext::from(value.to_string()),
+            context: ErrContext::from(value),
+        }
+    }
+}
+
+impl From<(&str, &str)> for WithContext {
+    fn from(value: (&str, &str)) -> Self {
+        Self {
+            target: None,
+            context: ErrContext::from(value),
         }
     }
 }
@@ -59,6 +68,21 @@ impl From<String> for ErrContext {
     fn from(value: String) -> Self {
         Self {
             items: vec![("msg".into(), value)],
+        }
+    }
+}
+impl From<(String, String)> for ErrContext {
+    fn from(value: (String, String)) -> Self {
+        Self {
+            items: vec![(value.0, value.1)],
+        }
+    }
+}
+
+impl From<(&str, &str)> for ErrContext {
+    fn from(value: (&str, &str)) -> Self {
+        Self {
+            items: vec![(value.0.to_string(), value.1.to_string())],
         }
     }
 }

@@ -148,6 +148,7 @@ impl OrderService {
         let order = Self::parse_order(order_txt, amount)
             .want("解析订单")
             .with(&ctx)
+            .with(("key", "value"))
             .owe_biz()?;
 
         Self::validate_funds(user_id, order.amount)
