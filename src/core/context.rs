@@ -54,6 +54,15 @@ impl From<(&str, &str)> for WithContext {
     }
 }
 
+impl From<(&str, String)> for WithContext {
+    fn from(value: (&str, String)) -> Self {
+        Self {
+            target: None,
+            context: ErrContext::from(value),
+        }
+    }
+}
+
 impl From<&WithContext> for WithContext {
     fn from(value: &WithContext) -> Self {
         value.clone()
