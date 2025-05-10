@@ -87,6 +87,14 @@ impl From<(&str, &str)> for ErrContext {
     }
 }
 
+impl From<(&str, String)> for ErrContext {
+    fn from(value: (&str, String)) -> Self {
+        Self {
+            items: vec![(value.0.to_string(), value.1)],
+        }
+    }
+}
+
 pub trait ContextAdd<T> {
     fn add_context(&mut self, val: T);
 }
