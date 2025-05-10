@@ -30,8 +30,8 @@ impl WithContext {
 impl From<String> for WithContext {
     fn from(value: String) -> Self {
         Self {
-            target: Some(value),
-            context: ErrContext::default(),
+            target: None,
+            context: ErrContext::from(value.to_string()),
         }
     }
 }
@@ -39,8 +39,8 @@ impl From<String> for WithContext {
 impl From<&str> for WithContext {
     fn from(value: &str) -> Self {
         Self {
-            target: Some(value.to_string()),
-            context: ErrContext::default(),
+            target: None,
+            context: ErrContext::from(value.to_string()),
         }
     }
 }
@@ -54,6 +54,13 @@ impl From<&WithContext> for WithContext {
 #[derive(Default, Error, Debug, Clone, PartialEq, Serialize)]
 pub struct ErrContext {
     pub items: Vec<(String, String)>,
+}
+impl From<String> for ErrContext {
+    fn from(value: String) -> Self {
+        Self {
+            items: vec![("msg".into(), value)],
+        }
+    }
 }
 
 pub trait ContextAdd<T> {
