@@ -1,6 +1,6 @@
 use derive_getters::Getters;
 use serde::Serialize;
-use std::fmt::Display;
+use std::{fmt::Display, path::PathBuf};
 use thiserror::Error;
 
 #[derive(Debug, Clone, Getters, Default)]
@@ -24,6 +24,11 @@ impl WithContext {
     }
     pub fn with<S1: Into<String>, S2: Into<String>>(&mut self, key: S1, val: S2) {
         self.context.items.push((key.into(), val.into()));
+    }
+    pub fn with_path<S1: Into<String>, S2: Into<PathBuf>>(&mut self, key: S1, val: S2) {
+        self.context
+            .items
+            .push((key.into(), format!("{}", val.into().display())));
     }
 }
 
