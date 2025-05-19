@@ -1,27 +1,20 @@
 use std::fmt::Display;
 
+use derive_more::From;
 use serde::Serialize;
+use thiserror::Error;
 
-use super::error::StructError;
+use super::UvsReason;
 
 pub trait DomainReason: PartialEq + Display + Serialize {}
 
-#[derive(Debug, PartialEq, Serialize)]
-pub struct NullReason {}
-impl DomainReason for NullReason {}
+impl<T> DomainReason for T where T: From<UvsReason> + Display + PartialEq + Serialize {}
 
-pub trait DomainFrom<E, R>
-where
-    R: DomainReason,
-{
-    fn from_domain(reason: E) -> StructError<R>;
-    fn err_from_domain<T>(reason: E) -> Result<T, StructError<R>> {
-        Err(Self::from_domain(reason))
-    }
-}
-
-impl Display for NullReason {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "NullReason")
-    }
+#[derive(Debug, PartialEq, Serialize, Error, From)]
+pub enum NullReason {
+    #[allow(dead_code)]
+    #[error("null")]
+    Null,
+    #[error("{0}")]
+    Uvs(UvsReason),
 }

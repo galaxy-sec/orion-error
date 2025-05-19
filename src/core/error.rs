@@ -5,9 +5,7 @@ use crate::ErrorWith;
 use super::{
     context::{ErrContext, WithContext},
     domain::DomainReason,
-    reason::convert_reason,
-    universal::UvsReason,
-    ContextAdd, ErrorCode, StructReason,
+    ContextAdd, ErrorCode,
 };
 use derive_getters::Getters;
 use serde::Serialize;
@@ -21,7 +19,7 @@ macro_rules! location {
 }
 
 pub trait StructErrorTrait<T: DomainReason> {
-    fn get_reason(&self) -> &StructReason<T>;
+    fn get_reason(&self) -> &T;
     fn get_detail(&self) -> Option<&String>;
     fn get_target(&self) -> Option<&String>;
 }
@@ -57,7 +55,7 @@ impl<T: DomainReason> Deref for StructError<T> {
 }
 impl<T: DomainReason> StructError<T> {
     pub fn new(
-        reason: StructReason<T>,
+        reason: T,
         detail: Option<String>,
         position: Option<String>,
         target: Option<String>,
@@ -74,18 +72,18 @@ impl<T: DomainReason> StructError<T> {
         }
     }
 }
-impl<T> From<StructReason<T>> for StructError<T>
+impl<T> From<T> for StructError<T>
 where
     T: DomainReason,
 {
-    fn from(value: StructReason<T>) -> Self {
+    fn from(value: T) -> Self {
         StructError::new(value, None, None, None, ErrContext::default())
     }
 }
 
 #[derive(Error, Debug, Clone, PartialEq, Getters, Serialize)]
 pub struct StructErrorImpl<T: DomainReason> {
-    reason: StructReason<T>,
+    reason: T,
     detail: Option<String>,
     position: Option<String>,
     target: Option<String>,
@@ -95,11 +93,10 @@ pub struct StructErrorImpl<T: DomainReason> {
 pub fn convert_error<R1, R2>(other: StructError<R1>) -> StructError<R2>
 where
     R1: DomainReason,
-    R2: DomainReason,
-    StructReason<R2>: From<R1>,
+    R2: DomainReason + From<R1>,
 {
     StructError::new(
-        convert_reason(other.imp.reason),
+        other.imp.reason.into(),
         other.imp.detail,
         other.imp.position,
         other.imp.target,
@@ -127,22 +124,10 @@ impl<T: DomainReason> StructError<T> {
     pub fn err<V>(self) -> Result<V, Self> {
         Err(self)
     }
-    /// 创建领域错误快捷方法
-    pub fn domain(reason: impl Into<T>) -> StructError<T> {
-        Self::default_other(StructReason::Domain(reason.into()))
-    }
-
-    /// 创建通用错误快捷方法
-    pub fn universal(reason: UvsReason) -> Self {
-        Self::default_other(StructReason::Universal(reason))
-    }
-    fn default_other(reason: StructReason<T>) -> Self {
-        Self::new(reason, None, None, None, ErrContext::default())
-    }
 }
 
 impl<T: DomainReason> StructErrorTrait<T> for StructError<T> {
-    fn get_reason(&self) -> &StructReason<T> {
+    fn get_reason(&self) -> &T {
         &self.reason
     }
 
@@ -221,87 +206,29 @@ impl<T: DomainReason> ErrorWith for StructError<T> {
     }
 }
 
-impl<R: DomainReason> From<UvsReason> for StructError<R> {
-    fn from(reason: UvsReason) -> Self {
-        Self::universal(reason)
-    }
-}
-
-impl<T: DomainReason> From<T> for StructError<T> {
-    fn from(reason: T) -> Self {
-        Self::domain(reason)
-    }
-}
-
-pub fn convert_error_type<R1, R2>(e: StructError<R1>) -> StructError<R2>
-where
-    R1: DomainReason,
-    R2: DomainReason,
-    StructReason<R2>: From<R1>,
-{
-    let reason = match e.imp.reason {
-        StructReason::Universal(u) => StructReason::<R2>::Universal(u),
-        StructReason::Domain(d) => StructReason::<R2>::from(d),
-    };
-    StructError::new(
-        reason,
-        e.imp.detail,
-        e.imp.position,
-        e.imp.target,
-        e.imp.context,
-    )
-}
-
-impl<R> StructError<R>
-where
-    R: DomainReason,
-{
-    pub fn from_uvs<R1>(e: StructError<R1>, reason: UvsReason) -> StructError<R>
-    where
-        R1: DomainReason,
-    {
-        StructError::new(
-            StructReason::Universal(reason),
-            e.imp.position,
-            e.imp.detail,
-            e.imp.target,
-            e.imp.context,
-        )
-    }
-    pub fn from_uvs_rs(reason: UvsReason) -> StructError<R> {
-        Self::from(reason)
-    }
-
-    pub fn err_from_uvs<T, R1>(e: StructError<R1>, reason: UvsReason) -> Result<T, StructError<R>>
-    where
-        R1: DomainReason,
-    {
-        Err(Self::from_uvs(e, reason))
-    }
-}
-
 #[cfg(test)]
 mod tests {
 
+    use crate::UvsReason;
+
     use super::*;
+    use derive_more::From;
     use serde_json::json;
 
     // Define a simple DomainReason for testing
-    #[derive(Debug, Clone, PartialEq, Serialize)]
+    #[derive(Debug, Clone, PartialEq, Serialize, Error, From)]
     enum TestDomainReason {
+        #[error("test error")]
         TestError,
-    }
-    impl Display for TestDomainReason {
-        fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            todo!()
-        }
+        #[error("{0}")]
+        Uvs(UvsReason),
     }
 
-    impl DomainReason for TestDomainReason {}
     impl ErrorCode for TestDomainReason {
         fn error_code(&self) -> i32 {
             match self {
                 TestDomainReason::TestError => 1001,
+                TestDomainReason::Uvs(uvs_reason) => uvs_reason.error_code(),
             }
         }
     }
@@ -319,7 +246,7 @@ mod tests {
 
         // Create a StructError
         let error = StructError::new(
-            StructReason::Domain(TestDomainReason::TestError),
+            TestDomainReason::TestError,
             Some("Detailed error description".to_string()),
             Some("file.rs:10:5".to_string()),
             Some("target_resource".to_string()),
@@ -332,9 +259,7 @@ mod tests {
 
         // Expected JSON structure
         let expected = json!({
-            "reason": {
-                "Domain": "TestError"
-            },
+            "reason":  "TestError" ,
             "detail": "Detailed error description",
             "position": "file.rs:10:5",
             "target": "target_resource",

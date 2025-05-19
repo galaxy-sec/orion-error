@@ -1,77 +1,76 @@
-use std::fmt::Display;
-
 use super::{
-    domain::{DomainFrom, DomainReason},
+    domain::DomainReason,
     error::StructError,
     universal::{ConfErrReason, ErrorPayload, UvsConfFrom, UvsDataFrom, UvsReason},
-    StructReason, UvsBizFrom, UvsLogicFrom, UvsResFrom, UvsRuleFrom, UvsSysFrom,
+    UvsBizFrom, UvsLogicFrom, UvsResFrom, UvsRuleFrom, UvsSysFrom,
 };
 
 impl<R> UvsConfFrom<StructError<R>, String> for StructError<R>
 where
-    R: DomainReason,
+    R: DomainReason + From<UvsReason>,
 {
     fn from_conf(info: String) -> Self {
-        Self::from_uvs_rs(UvsReason::ConfError(ConfErrReason::Core(info)))
+        Self::from(R::from(UvsReason::ConfError(ConfErrReason::Core(info))))
     }
 }
 
 impl<R> UvsDataFrom<StructError<R>, String> for StructError<R>
 where
-    R: DomainReason,
+    R: DomainReason + From<UvsReason>,
 {
     fn from_data(info: String, pos: Option<usize>) -> Self {
-        Self::from_uvs_rs(UvsReason::DataError(ErrorPayload::new(info), pos))
+        Self::from(R::from(UvsReason::DataError(ErrorPayload::new(info), pos)))
     }
 }
 
 impl<R> UvsSysFrom<StructError<R>, String> for StructError<R>
 where
-    R: DomainReason,
+    R: DomainReason + From<UvsReason>,
 {
     fn from_sys(info: String) -> Self {
-        Self::from_uvs_rs(UvsReason::SysError(ErrorPayload::new(info)))
+        Self::from(R::from(UvsReason::SysError(ErrorPayload::new(info))))
     }
 }
 
 impl<R> UvsRuleFrom<StructError<R>, String> for StructError<R>
 where
-    R: DomainReason,
+    R: DomainReason + From<UvsReason>,
 {
     fn from_rule(info: String) -> Self {
-        Self::from_uvs_rs(UvsReason::RuleError(ErrorPayload::new(info)))
+        Self::from(R::from(UvsReason::RuleError(ErrorPayload::new(info))))
     }
 }
 impl<R> UvsLogicFrom<StructError<R>, String> for StructError<R>
 where
-    R: DomainReason,
+    R: DomainReason + From<UvsReason>,
 {
     fn from_logic(info: String) -> Self {
-        Self::from_uvs_rs(UvsReason::LogicError(ErrorPayload::new(info)))
+        Self::from(R::from(UvsReason::LogicError(ErrorPayload::new(info))))
     }
 }
 impl<R> UvsBizFrom<StructError<R>, String> for StructError<R>
 where
-    R: DomainReason,
+    R: DomainReason + From<UvsReason>,
 {
     fn from_biz(info: String) -> Self {
-        Self::from_uvs_rs(UvsReason::BizError(ErrorPayload::new(info)))
+        Self::from(R::from(UvsReason::BizError(ErrorPayload::new(info))))
     }
 }
 impl<R> UvsResFrom<StructError<R>, String> for StructError<R>
 where
-    R: DomainReason,
+    R: DomainReason + From<UvsReason>,
 {
     fn from_res(info: String) -> Self {
-        Self::from_uvs_rs(UvsReason::ResError(ErrorPayload::new(info)))
+        Self::from(R::from(UvsReason::ResError(ErrorPayload::new(info))))
     }
 }
 
+/*
 impl<R: DomainReason> DomainFrom<R, R> for StructError<R> {
     fn from_domain(reason: R) -> StructError<R> {
         StructError::from(StructReason::Domain(reason))
     }
-    fn err_from_domain<T>(reason: R) -> Result<T, StructError<R>> {
+    fn err_from<T>(reason: R) -> Result<T, StructError<R>> {
         Err(Self::from_domain(reason))
     }
 }
@@ -86,3 +85,5 @@ where
         StructError::from(StructReason::Domain(value.0)).with_detail(detail)
     }
 }
+
+*/

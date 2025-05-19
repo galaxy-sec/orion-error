@@ -2,46 +2,58 @@
 // 用例包括: order_service, order_store, order_txt 相关概念。
 // 产生错语的原因可能： order_txt 格式错语， 客户帐户资金不足、 order_store 的空间不足等
 
+use derive_more::From;
 use orion_error::{
-    DomainFrom, DomainReason, ErrorCode, ErrorConv, ErrorOwe, ErrorWith, StructError, StructReason,
-    UvsBizFrom, UvsReason, UvsSysFrom, WithContext,
+    DomainReason, ErrorCode, ErrorConv, ErrorOwe, ErrorWith, StructError, UvsBizFrom, UvsReason,
+    UvsSysFrom, WithContext,
 };
-use parse_display_derive::Display;
 use serde::Serialize;
 use std::{
     fmt::{Display, Formatter},
     sync::atomic::Ordering,
 };
+use thiserror::Error;
 
 // ========== 领域错误定义 ==========
-#[derive(Debug, PartialEq, Clone, Serialize)]
+#[derive(Debug, PartialEq, Clone, Serialize, From)]
 pub enum OrderReason {
     FormatError,
     InsufficientFunds,
     StorageFull,
     UserNotFound,
+    Uvs(UvsReason),
 }
 impl ErrorCode for OrderReason {
     fn error_code(&self) -> i32 {
-        500
+        match self {
+            Self::Uvs(uvs_reason) => uvs_reason.error_code(),
+            _ => 500,
+        }
     }
 }
 
-#[derive(Debug, PartialEq, Clone, Display, Serialize)]
-#[display(style = "snake_case")]
+#[derive(Debug, PartialEq, Clone, Serialize, Error, From)]
 pub enum StoreReason {
+    #[error("storeage full")]
     StorageFull,
+    #[error("{0}")]
+    Uvs(UvsReason),
 }
 impl ErrorCode for StoreReason {
     fn error_code(&self) -> i32 {
-        500
+        match self {
+            Self::Uvs(uvs_reason) => uvs_reason.error_code(),
+            _ => 500,
+        }
     }
 }
 
-#[derive(Debug, PartialEq, Clone, Display, Serialize)]
-#[display(style = "snake_case")]
+#[derive(Debug, Error, PartialEq, Clone, Serialize, From)]
 pub enum ParseReason {
+    #[error("format error")]
     FormatError,
+    #[error("{0}")]
+    Uvs(UvsReason),
 }
 impl ErrorCode for ParseReason {
     fn error_code(&self) -> i32 {
@@ -49,36 +61,31 @@ impl ErrorCode for ParseReason {
     }
 }
 
-#[derive(Debug, PartialEq, Clone, Display, Serialize)]
-#[display(style = "snake_case")]
+#[derive(Debug, PartialEq, Clone, Serialize, Error, From)]
 pub enum UserReason {
+    #[error("not found")]
     NotFound,
+    #[error("{0}")]
+    Uvs(UvsReason),
 }
 
-impl From<UserReason> for StructReason<OrderReason> {
+impl From<UserReason> for OrderReason {
     fn from(value: UserReason) -> Self {
         match value {
-            UserReason::NotFound => {
-                StructReason::from(UvsReason::from_biz("logic fail".to_string()))
-            }
+            UserReason::NotFound => Self::Uvs(UvsReason::from_biz("logic fail".to_string())),
+            UserReason::Uvs(uvs_reason) => Self::Uvs(uvs_reason),
         }
     }
 }
 
-impl From<StoreReason> for StructReason<OrderReason> {
+impl From<StoreReason> for OrderReason {
     fn from(value: StoreReason) -> Self {
         match value {
-            StoreReason::StorageFull => {
-                StructReason::from(UvsReason::from_sys("sys fail".to_string()))
-            }
+            StoreReason::StorageFull => Self::Uvs(UvsReason::from_sys("sys fail".to_string())),
+            StoreReason::Uvs(uvs_reason) => Self::Uvs(uvs_reason),
         }
     }
 }
-
-impl DomainReason for OrderReason {}
-impl DomainReason for StoreReason {}
-impl DomainReason for ParseReason {}
-impl DomainReason for UserReason {}
 pub type OrderError = StructError<OrderReason>;
 pub type StoreError = StructError<StoreReason>;
 pub type ParseError = StructError<ParseReason>;
@@ -91,6 +98,7 @@ impl Display for OrderReason {
             OrderReason::InsufficientFunds => write!(f, "账户余额不足"),
             OrderReason::StorageFull => write!(f, "订单存储空间不足"),
             OrderReason::UserNotFound => write!(f, "用户不存在"),
+            OrderReason::Uvs(uvs_reason) => write!(f, "{}", uvs_reason),
         }
     }
 }
@@ -188,7 +196,7 @@ impl OrderService {
 
     fn get_balance(user_id: u32) -> Result<f64, UserError> {
         if user_id != 123 {
-            UserError::from_domain(UserReason::NotFound)
+            UserError::from(UserReason::NotFound)
                 .with_detail(format!("uid:{}", user_id))
                 .err()
         } else {

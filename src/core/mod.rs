@@ -8,9 +8,9 @@ mod stc_impl;
 mod universal;
 pub use context::ContextAdd;
 pub use context::WithContext;
-pub use domain::{DomainFrom, DomainReason};
-pub use error::{convert_error, convert_error_type, StructError, StructErrorTrait};
-pub use reason::{ErrorCode, StructReason};
+pub use domain::DomainReason;
+pub use error::{convert_error, StructError, StructErrorTrait};
+pub use reason::ErrorCode;
 pub use universal::{
     ConfErrReason, UvsBizFrom, UvsConfFrom, UvsDataFrom, UvsLogicFrom, UvsReason, UvsResFrom,
     UvsRuleFrom, UvsSysFrom,
