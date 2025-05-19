@@ -4,7 +4,7 @@
 
 use derive_more::From;
 use orion_error::{
-    DomainReason, ErrorCode, ErrorConv, ErrorOwe, ErrorWith, StructError, UvsBizFrom, UvsReason,
+    print_error, ErrorCode, ErrorConv, ErrorOwe, ErrorWith, StructError, UvsBizFrom, UvsReason,
     UvsSysFrom, WithContext,
 };
 use serde::Serialize;
@@ -211,13 +211,6 @@ impl OrderService {
 }
 
 // ========== 展示错误处理 ==========
-fn print_error<R: DomainReason + ErrorCode + Display>(err: &StructError<R>) {
-    println!("[错误代码 {}] \n{}", err.reason().error_code(), err,);
-    if !err.context().items.is_empty() {
-        println!("上下文: {}", err.context());
-    }
-    println!("{}", "-".repeat(50));
-}
 
 fn main() {
     // 测试用例 1: 空订单文本

@@ -5,8 +5,8 @@ mod traits;
 pub use core::StructError;
 pub use core::WithContext;
 pub use core::{
-    ConfErrReason, DomainReason, ErrorCode, StructErrorTrait, UvsBizFrom, UvsConfFrom, UvsDataFrom,
-    UvsLogicFrom, UvsReason, UvsResFrom, UvsRuleFrom, UvsSysFrom,
+    print_error, ConfErrReason, DomainReason, ErrorCode, StructErrorTrait, UvsBizFrom, UvsConfFrom,
+    UvsDataFrom, UvsLogicFrom, UvsReason, UvsResFrom, UvsRuleFrom, UvsSysFrom,
 };
 pub use traits::ErrorOwe;
 pub use traits::{ConvStructError, ErrorConv, ErrorWith};

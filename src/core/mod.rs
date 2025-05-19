@@ -6,6 +6,8 @@ mod reason;
 mod stc_impl;
 //mod target;
 mod universal;
+use std::fmt::Display;
+
 pub use context::ContextAdd;
 pub use context::WithContext;
 pub use domain::DomainReason;
@@ -23,4 +25,12 @@ pub enum ErrStrategy {
     Ignore,
     /// 传播错误（默认行为）
     Throw,
+}
+
+pub fn print_error<R: DomainReason + ErrorCode + Display>(err: &StructError<R>) {
+    println!("[错误代码 {}] \n{}", err.reason().error_code(), err,);
+    if !err.context().items.is_empty() {
+        println!("上下文: {}", err.context());
+    }
+    println!("{}", "-".repeat(50));
 }
