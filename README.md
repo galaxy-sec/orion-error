@@ -3,6 +3,8 @@
 
 Structured error handling library for building large-scale applications, providing complete error context tracking and flexible aggregation strategies.
 
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/galaxy-sec/orion-error)
+
 ## Features
 
 - **Structured Errors**: Support multi-layer error aggregation with full error chain

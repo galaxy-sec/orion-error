@@ -1,6 +1,9 @@
 use derive_getters::Getters;
 use serde::Serialize;
-use std::{fmt::Display, path::PathBuf};
+use std::{
+    fmt::Display,
+    path::{Path, PathBuf},
+};
 use thiserror::Error;
 
 #[derive(Debug, Clone, Getters, Default)]
@@ -37,6 +40,40 @@ impl From<String> for WithContext {
         Self {
             target: None,
             context: ErrContext::from(value.to_string()),
+        }
+    }
+}
+
+impl From<&PathBuf> for WithContext {
+    fn from(value: &PathBuf) -> Self {
+        Self {
+            target: None,
+            context: ErrContext::from(format!("{}", value.display())),
+        }
+    }
+}
+impl From<(&str, &PathBuf)> for WithContext {
+    fn from(value: (&str, &PathBuf)) -> Self {
+        Self {
+            target: None,
+            context: ErrContext::from((value.0, format!("{}", value.1.display()))),
+        }
+    }
+}
+
+impl From<&Path> for WithContext {
+    fn from(value: &Path) -> Self {
+        Self {
+            target: None,
+            context: ErrContext::from(format!("{}", value.display())),
+        }
+    }
+}
+impl From<(&str, &Path)> for WithContext {
+    fn from(value: (&str, &Path)) -> Self {
+        Self {
+            target: None,
+            context: ErrContext::from((value.0, format!("{}", value.1.display()))),
         }
     }
 }
@@ -81,7 +118,7 @@ pub struct ErrContext {
 impl From<String> for ErrContext {
     fn from(value: String) -> Self {
         Self {
-            items: vec![("msg".into(), value)],
+            items: vec![("key".into(), value)],
         }
     }
 }
