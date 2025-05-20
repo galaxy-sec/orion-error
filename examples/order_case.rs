@@ -126,9 +126,9 @@ pub mod storage {
 
     fn save_db_impl(order: Order) -> Result<(), std::io::Error> {
         let capacity = STORAGE_CAPACITY.load(Ordering::Relaxed);
-        let mut orders = ORDERS.lock().map_err(|_| {
-            std::io::Error::new(std::io::ErrorKind::Other, "Failed to lock orders mutex")
-        })?;
+        let mut orders = ORDERS
+            .lock()
+            .map_err(|_| std::io::Error::other("Failed to lock orders mutex"))?;
 
         if orders.len() >= capacity {
             return Err(std::io::Error::new(
