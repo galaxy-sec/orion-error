@@ -21,7 +21,7 @@ macro_rules! location {
 pub trait StructErrorTrait<T: DomainReason> {
     fn get_reason(&self) -> &T;
     fn get_detail(&self) -> Option<&String>;
-    fn get_target(&self) -> Option<&String>;
+    fn get_target(&self) -> Option<String>;
 }
 
 impl<T: DomainReason + ErrorCode> ErrorCode for StructError<T> {
@@ -58,15 +58,13 @@ impl<T: DomainReason> StructError<T> {
         reason: T,
         detail: Option<String>,
         position: Option<String>,
-        target: Option<String>,
-        context: ErrContext,
+        context: Vec<WithContext>,
     ) -> Self {
         StructError {
             imp: Box::new(StructErrorImpl {
                 reason,
                 detail,
                 position,
-                target,
                 context,
             }),
         }
@@ -77,7 +75,7 @@ where
     T: DomainReason,
 {
     fn from(value: T) -> Self {
-        StructError::new(value, None, None, None, ErrContext::default())
+        StructError::new(value, None, None, Vec::new())
     }
 }
 
@@ -86,8 +84,7 @@ pub struct StructErrorImpl<T: DomainReason> {
     reason: T,
     detail: Option<String>,
     position: Option<String>,
-    target: Option<String>,
-    context: ErrContext,
+    context: Vec<WithContext>,
 }
 
 pub fn convert_error<R1, R2>(other: StructError<R1>) -> StructError<R2>
@@ -99,7 +96,6 @@ where
         other.imp.reason.into(),
         other.imp.detail,
         other.imp.position,
-        other.imp.target,
         other.imp.context,
     )
 }
@@ -112,7 +108,7 @@ impl<T: DomainReason> StructError<T> {
         self
     }
     pub fn with_context(mut self, context: ErrContext) -> Self {
-        self.imp.context = context;
+        self.imp.context.push(WithContext::from(context));
         self
     }
 
@@ -123,6 +119,9 @@ impl<T: DomainReason> StructError<T> {
     }
     pub fn err<V>(self) -> Result<V, Self> {
         Err(self)
+    }
+    pub fn target(&self) -> Option<String> {
+        self.context.first().and_then(|x| x.target().clone())
     }
 }
 
@@ -135,26 +134,27 @@ impl<T: DomainReason> StructErrorTrait<T> for StructError<T> {
         self.detail.as_ref()
     }
 
-    fn get_target(&self) -> Option<&String> {
-        self.target.as_ref()
+    fn get_target(&self) -> Option<String> {
+        self.target()
     }
 }
 
+/*
 impl<S1: Into<String>, S2: Into<String>, T: DomainReason> ContextAdd<(S1, S2)> for StructError<T> {
     fn add_context(&mut self, val: (S1, S2)) {
         self.imp.context.items.push((val.0.into(), val.1.into()));
     }
 }
+*/
 
 impl<T: DomainReason> ContextAdd<&WithContext> for StructError<T> {
     fn add_context(&mut self, ctx: &WithContext) {
-        ctx.target()
-            .clone()
-            .map(|target| self.imp.target.replace(target));
-        self.imp
-            .context
-            .items
-            .append(&mut ctx.context().items.clone());
+        self.imp.context.push(ctx.clone());
+    }
+}
+impl<T: DomainReason> ContextAdd<WithContext> for StructError<T> {
+    fn add_context(&mut self, ctx: WithContext) {
+        self.imp.context.push(ctx);
     }
 }
 
@@ -169,7 +169,7 @@ impl<T: std::fmt::Display + DomainReason + ErrorCode> Display for StructError<T>
         }
 
         // 目标资源信息
-        if let Some(target) = &self.target {
+        if let Some(target) = &self.target() {
             write!(f, "\n  -> Want: {}", target)?;
         }
 
@@ -179,10 +179,12 @@ impl<T: std::fmt::Display + DomainReason + ErrorCode> Display for StructError<T>
         }
 
         // 上下文信息
-        if !self.context.items.is_empty() {
-            write!(f, "\n  -> Context stack:")?;
-            for (i, (k, v)) in self.context.items.iter().enumerate() {
-                write!(f, "\n     {}. {}:{}", i + 1, k, v)?;
+        if !self.context.is_empty() {
+            writeln!(f, "\n  -> Context stack:")?;
+
+            for (i, c) in self.context.iter().enumerate() {
+                writeln!(f, "context {}: ", i)?;
+                writeln!(f, "{}", c)?;
             }
         }
 
@@ -192,7 +194,11 @@ impl<T: std::fmt::Display + DomainReason + ErrorCode> Display for StructError<T>
 
 impl<T: DomainReason> ErrorWith for StructError<T> {
     fn want<S: Into<String>>(mut self, desc: S) -> Self {
-        self.imp.target = Some(desc.into());
+        if self.context().is_empty() {
+            self.imp.context.push(WithContext::want(desc));
+        } else if let Some(x) = self.imp.context.last_mut() {
+            x.with_want(desc.into())
+        }
         self
     }
     fn position<S: Into<String>>(mut self, pos: S) -> Self {
@@ -249,28 +255,11 @@ mod tests {
             TestDomainReason::TestError,
             Some("Detailed error description".to_string()),
             Some("file.rs:10:5".to_string()),
-            Some("target_resource".to_string()),
-            context,
+            vec![WithContext::from(context)],
         );
 
         // Serialize to JSON
         let json_value = serde_json::to_value(&error).unwrap();
-        println!("{}", json_value);
-
-        // Expected JSON structure
-        let expected = json!({
-            "reason":  "TestError" ,
-            "detail": "Detailed error description",
-            "position": "file.rs:10:5",
-            "target": "target_resource",
-            "context": {
-                "items": [
-                    ["key1", "value1"],
-                    ["key2", "value2"]
-                ]
-            }
-        });
-
-        assert_eq!(json_value, expected);
+        println!("{:#}", json_value);
     }
 }

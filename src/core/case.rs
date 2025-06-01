@@ -68,8 +68,11 @@ mod tests {
 
         let err = StructError::from(TestDomainReason::Why1).with(ctx);
 
-        assert_eq!(err.target(), &Some("user_profile".to_string()));
+        assert_eq!(err.target(), Some("user_profile".to_string()));
         assert!(err
+            .context()
+            .first()
+            .unwrap()
             .context()
             .items
             .contains(&("user_id".into(), "12345".into())));
@@ -111,8 +114,8 @@ mod tests {
         assert!(display_output.contains("-> Want: database_config"));
         assert!(display_output.contains("-> Details: missing db config"));
         assert!(display_output.contains("Context stack:"));
-        assert!(display_output.contains("1. step:initialization"));
-        assert!(display_output.contains("2. resource:database"));
+        assert!(display_output.contains("1. step: initialization"));
+        assert!(display_output.contains("2. resource: database"));
     }
 
     #[test]

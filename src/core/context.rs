@@ -6,10 +6,30 @@ use std::{
 };
 use thiserror::Error;
 
-#[derive(Debug, Clone, Getters, Default)]
+#[derive(Debug, Clone, Getters, Default, Serialize, PartialEq)]
 pub struct WithContext {
     target: Option<String>,
     context: ErrContext,
+}
+impl From<ErrContext> for WithContext {
+    fn from(value: ErrContext) -> Self {
+        Self {
+            target: None,
+            context: value,
+        }
+    }
+}
+
+impl Display for WithContext {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if let Some(target) = &self.target {
+            writeln!(f, "target: {} ", target)?;
+        }
+        for (i, (k, v)) in self.context().items.iter().enumerate() {
+            writeln!(f, "{}. {}: {} ", i + 1, k, v)?;
+        }
+        Ok(())
+    }
 }
 
 impl WithContext {
@@ -32,6 +52,10 @@ impl WithContext {
         self.context
             .items
             .push((key.into(), format!("{}", val.into().display())));
+    }
+
+    pub fn with_want<S: Into<String>>(&mut self, target: S) {
+        self.target = Some(target.into())
     }
 }
 
