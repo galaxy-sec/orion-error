@@ -219,7 +219,6 @@ mod tests {
 
     use super::*;
     use derive_more::From;
-    use serde_json::json;
 
     // Define a simple DomainReason for testing
     #[derive(Debug, Clone, PartialEq, Serialize, Error, From)]

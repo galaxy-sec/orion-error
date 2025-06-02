@@ -30,3 +30,22 @@ where
         convert_error::<R1, R2>(self)
     }
 }
+
+pub trait ToStructError<R>
+where
+    R: DomainReason,
+{
+    fn to_err(self) -> StructError<R>;
+    fn err_result<T>(self) -> Result<T, StructError<R>>;
+}
+impl<R> ToStructError<R> for R
+where
+    R: DomainReason,
+{
+    fn to_err(self) -> StructError<R> {
+        StructError::from(self)
+    }
+    fn err_result<T>(self) -> Result<T, StructError<R>> {
+        Err(StructError::from(self))
+    }
+}

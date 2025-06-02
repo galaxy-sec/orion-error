@@ -9,7 +9,7 @@ pub use core::{
     UvsDataFrom, UvsLogicFrom, UvsReason, UvsResFrom, UvsRuleFrom, UvsSysFrom,
 };
 pub use traits::ErrorOwe;
-pub use traits::{ConvStructError, ErrorConv, ErrorWith};
+pub use traits::{ConvStructError, ErrorConv, ErrorWith, ToStructError};
 
 pub use core::ErrStrategy;
 pub use testcase::{TestAssert, TestAssertWithMsg};
