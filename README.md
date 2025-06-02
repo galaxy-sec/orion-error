@@ -25,8 +25,7 @@ Structured error handling library for building large-scale applications, providi
 Add to Cargo.toml:
 ```toml
 [dependencies]
-orion-error = "0.3"
-parse-display = "0.7"  # Optional for error display
+orion-error = "0.2"
 ```
 
 ## Core Concepts
@@ -121,8 +120,7 @@ MIT License
   在 Cargo.toml 中添加：
   ```toml
   [dependencies]
-  orion-error = "0.1"
-  parse-display = "0.7"  # 可选，用于错误展示
+  orion-error = "0.2"
   ```
 
 
