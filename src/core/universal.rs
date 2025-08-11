@@ -32,6 +32,8 @@ pub enum UvsReason {
     SysError(ErrorPayload),
     #[error("res error << {0}")]
     ResError(ErrorPayload),
+    #[error("res error << {0}")]
+    NetError(ErrorPayload),
     #[error("conf error << {0}")]
     ConfError(ConfErrReason),
     #[error("rule error << {0}")]
@@ -156,6 +158,7 @@ impl ErrorCode for UvsReason {
             UvsReason::ConfError(_) => 105,
             UvsReason::RuleError(_) => 106,
             UvsReason::PrivacyError(_) => 107,
+            UvsReason::NetError(_) => 108,
         }
     }
 }
