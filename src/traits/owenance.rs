@@ -1,6 +1,6 @@
 use crate::{
-    core::{DomainReason, UvsReason},
-    StructError, UvsBizFrom, UvsDataFrom, UvsResFrom, UvsRuleFrom, UvsSysFrom,
+    core::{DomainReason, UvsNetFrom, UvsReason},
+    StructError, UvsBizFrom, UvsDataFrom, UvsResFrom, UvsRuleFrom, UvsSysFrom, UvsTimeoutFrom,
 };
 
 /// 非结构错误(StructError) 转化为结构错误。
@@ -17,6 +17,8 @@ where
     fn owe_data(self) -> Result<T, StructError<R>>;
     fn owe_conf(self) -> Result<T, StructError<R>>;
     fn owe_res(self) -> Result<T, StructError<R>>;
+    fn owe_net(self) -> Result<T, StructError<R>>;
+    fn owe_timeout(self) -> Result<T, StructError<R>>;
     fn owe_sys(self) -> Result<T, StructError<R>>;
 }
 
@@ -49,6 +51,12 @@ where
     }
     fn owe_res(self) -> Result<T, StructError<R>> {
         self.map_err(|e| StructError::from(R::from(UvsReason::from_res(e.to_string()))))
+    }
+    fn owe_net(self) -> Result<T, StructError<R>> {
+        self.map_err(|e| StructError::from(R::from(UvsReason::from_net(e.to_string()))))
+    }
+    fn owe_timeout(self) -> Result<T, StructError<R>> {
+        self.map_err(|e| StructError::from(R::from(UvsReason::from_timeout(e.to_string()))))
     }
     fn owe_sys(self) -> Result<T, StructError<R>> {
         self.map_err(|e| StructError::from(R::from(UvsReason::from_sys(e.to_string()))))

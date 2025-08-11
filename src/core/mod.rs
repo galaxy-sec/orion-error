@@ -14,8 +14,8 @@ pub use domain::DomainReason;
 pub use error::{convert_error, StructError, StructErrorTrait};
 pub use reason::ErrorCode;
 pub use universal::{
-    ConfErrReason, UvsBizFrom, UvsConfFrom, UvsDataFrom, UvsLogicFrom, UvsReason, UvsResFrom,
-    UvsRuleFrom, UvsSysFrom,
+    ConfErrReason, UvsBizFrom, UvsConfFrom, UvsDataFrom, UvsLogicFrom, UvsNetFrom, UvsReason,
+    UvsResFrom, UvsRuleFrom, UvsSysFrom, UvsTimeoutFrom,
 };
 
 pub enum ErrStrategy {

@@ -82,6 +82,14 @@ pub trait UvsResFrom<T, S> {
     fn from_res(info: S) -> T;
 }
 
+pub trait UvsNetFrom<T, S> {
+    fn from_net(info: S) -> T;
+}
+
+pub trait UvsTimeoutFrom<T, S> {
+    fn from_timeout(info: S) -> T;
+}
+
 /// 强类型错误负载包装
 #[derive(Debug, PartialEq, Clone, Serialize)]
 pub struct ErrorPayload(String);
@@ -146,6 +154,17 @@ impl UvsLogicFrom<UvsReason, String> for UvsReason {
 impl UvsResFrom<UvsReason, String> for UvsReason {
     fn from_res(info: String) -> Self {
         UvsReason::ResError(ErrorPayload::new(info))
+    }
+}
+
+impl UvsNetFrom<UvsReason, String> for UvsReason {
+    fn from_net(info: String) -> Self {
+        UvsReason::NetError(ErrorPayload::new(info))
+    }
+}
+impl UvsTimeoutFrom<UvsReason, String> for UvsReason {
+    fn from_timeout(info: String) -> Self {
+        UvsReason::Timeout(ErrorPayload::new(info))
     }
 }
 
