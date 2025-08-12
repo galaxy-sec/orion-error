@@ -17,7 +17,7 @@ where
     type Output = T;
 
     fn assert(self) -> T {
-        self.unwrap_or_else(|e| panic!("[TEST ASSERTION FAILED] \n Error details: {}", e))
+        self.unwrap_or_else(|e| panic!("[TEST ASSERTION FAILED] \n Error details: {e}"))
     }
 }
 
@@ -28,7 +28,7 @@ where
     type Output = T;
 
     fn assert(self, msg: &str) -> T {
-        self.unwrap_or_else(|e| panic!("[TEST ASSERTION FAILED] {} \n Error details: {}", msg, e))
+        self.unwrap_or_else(|e| panic!("[TEST ASSERTION FAILED] {msg} \n Error details: {e}"))
     }
 }
 

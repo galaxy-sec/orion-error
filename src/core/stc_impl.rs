@@ -25,7 +25,7 @@ where
     E: Display,
 {
     fn from_domain(value: (R, E)) -> StructError<R> {
-        let detail = format!("{}", value.1);
+        let detail = format!("{:?}", value.1);
         StructError::from(StructReason::Domain(value.0)).with_detail(detail)
     }
 }

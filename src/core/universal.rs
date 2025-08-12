@@ -102,7 +102,7 @@ impl ErrorPayload {
 
 impl Display for ErrorPayload {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
+        write!(f, "{:?}", self.0)
     }
 }
 impl From<String> for ErrorPayload {

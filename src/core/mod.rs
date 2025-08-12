@@ -28,9 +28,9 @@ pub enum ErrStrategy {
 }
 
 pub fn print_error<R: DomainReason + ErrorCode + Display>(err: &StructError<R>) {
-    println!("[错误代码 {}] \n{}", err.reason().error_code(), err,);
+    println!("[错误代码 {}] \n{err}", err.reason().error_code());
     for ctx in err.context() {
-        println!("上下文: {}", ctx.context());
+        println!("上下文: {ctx}", ctx = ctx.context());
     }
     println!("{}", "-".repeat(50));
 }

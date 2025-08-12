@@ -5,7 +5,7 @@ use crate::ErrorWith;
 use super::{
     context::{ErrContext, WithContext},
     domain::DomainReason,
-    ContextAdd, ErrorCode, UvsReason,
+    ContextAdd, ErrorCode,
 };
 use derive_getters::Getters;
 use serde::Serialize;
@@ -161,21 +161,21 @@ impl<T: DomainReason> ContextAdd<WithContext> for StructError<T> {
 impl<T: std::fmt::Display + DomainReason + ErrorCode> Display for StructError<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // 核心错误信息
-        write!(f, "[{}] {}", self.error_code(), self.reason)?;
+        write!(f, "[{}] {reason}", self.error_code(), reason = self.reason)?;
 
         // 位置信息优先显示
         if let Some(pos) = &self.position {
-            write!(f, "\n  -> At: {}", pos)?;
+            write!(f, "\n  -> At: {pos}")?;
         }
 
         // 目标资源信息
         if let Some(target) = &self.target() {
-            write!(f, "\n  -> Want: {}", target)?;
+            write!(f, "\n  -> Want: {target}")?;
         }
 
         // 技术细节
         if let Some(detail) = &self.detail {
-            write!(f, "\n  -> Details: {}", detail)?;
+            write!(f, "\n  -> Details: {detail}")?;
         }
 
         // 上下文信息
@@ -183,8 +183,8 @@ impl<T: std::fmt::Display + DomainReason + ErrorCode> Display for StructError<T>
             writeln!(f, "\n  -> Context stack:")?;
 
             for (i, c) in self.context.iter().enumerate() {
-                writeln!(f, "context {}: ", i)?;
-                writeln!(f, "{}", c)?;
+                writeln!(f, "context {i}: ")?;
+                writeln!(f, "{c}")?;
             }
         }
 
@@ -259,6 +259,6 @@ mod tests {
 
         // Serialize to JSON
         let json_value = serde_json::to_value(&error).unwrap();
-        println!("{:#}", json_value);
+        println!("{json_value:#}");
     }
 }

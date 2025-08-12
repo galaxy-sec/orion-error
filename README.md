@@ -67,7 +67,7 @@ parse_input().map_err(|e| e.owe(OrderError::ParseFailed))?;
 // Pattern 2: Add context
 db.query()
    .want("Read order data")
-   .with_detail(format!("order_id={}", id))
+   .with_detail(format!("order_id={id}"))
    .err_conv()?;
 ```
 
@@ -164,7 +164,7 @@ parse_input().map_err(|e| e.owe(OrderError::ParseFailed))?;
 // 模式2：添加上下文
 db.query()
    .want("读取订单数据")
-   .with_detail(format!("order_id={}", id))
+   .with_detail(format!("order_id={id}"))
    .err_conv()?;
 ```
 ## 完整示例

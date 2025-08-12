@@ -98,7 +98,7 @@ impl Display for OrderReason {
             OrderReason::InsufficientFunds => write!(f, "账户余额不足"),
             OrderReason::StorageFull => write!(f, "订单存储空间不足"),
             OrderReason::UserNotFound => write!(f, "用户不存在"),
-            OrderReason::Uvs(uvs_reason) => write!(f, "{}", uvs_reason),
+            OrderReason::Uvs(uvs_reason) => write!(f, "{uvs_reason}"),
         }
     }
 }
@@ -187,7 +187,7 @@ impl OrderService {
 
         if balance < amount {
             StructError::from(OrderReason::InsufficientFunds)
-                .with_detail(format!("当前余额：{}，需要：{}", balance, amount))
+                .with_detail(format!("当前余额：{balance}，需要：{amount}"))
                 .err()
         } else {
             Ok(())
@@ -197,7 +197,7 @@ impl OrderService {
     fn get_balance(user_id: u32) -> Result<f64, UserError> {
         if user_id != 123 {
             UserError::from(UserReason::NotFound)
-                .with_detail(format!("uid:{}", user_id))
+                .with_detail(format!("uid:{user_id}"))
                 .err()
         } else {
             Ok(500.0)

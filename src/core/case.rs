@@ -105,8 +105,8 @@ mod tests {
         .want("database_config")
         .with(ctx);
 
-        let display_output = format!("{}", err);
-        println!("{}", display_output);
+        let display_output = format!("{err}");
+        println!("{display_output}");
 
         assert!(display_output.contains("[105]")); // ConfError的error code
         assert!(display_output.contains("conf error << core config > config missing"));

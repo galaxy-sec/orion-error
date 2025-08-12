@@ -23,10 +23,10 @@ impl From<ErrContext> for WithContext {
 impl Display for WithContext {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if let Some(target) = &self.target {
-            writeln!(f, "target: {} ", target)?;
+            writeln!(f, "target: {target} ")?;
         }
         for (i, (k, v)) in self.context().items.iter().enumerate() {
-            writeln!(f, "{}. {}: {} ", i + 1, k, v)?;
+            writeln!(f, "{}. {k}: {v} ", i + 1)?;
         }
         Ok(())
     }
@@ -51,7 +51,7 @@ impl WithContext {
     pub fn with_path<S1: Into<String>, S2: Into<PathBuf>>(&mut self, key: S1, val: S2) {
         self.context
             .items
-            .push((key.into(), format!("{}", val.into().display())));
+            .push((key.into(), format!("{:?}", val.into().display())));
     }
 
     pub fn with_want<S: Into<String>>(&mut self, target: S) {
@@ -72,7 +72,7 @@ impl From<&PathBuf> for WithContext {
     fn from(value: &PathBuf) -> Self {
         Self {
             target: None,
-            context: ErrContext::from(format!("{}", value.display())),
+            context: ErrContext::from(format!("{:?}", value.display())),
         }
     }
 }
@@ -80,7 +80,7 @@ impl From<(&str, &PathBuf)> for WithContext {
     fn from(value: (&str, &PathBuf)) -> Self {
         Self {
             target: None,
-            context: ErrContext::from((value.0, format!("{}", value.1.display()))),
+            context: ErrContext::from((value.0, format!("{:?}", value.1.display()))),
         }
     }
 }
@@ -89,7 +89,7 @@ impl From<&Path> for WithContext {
     fn from(value: &Path) -> Self {
         Self {
             target: None,
-            context: ErrContext::from(format!("{}", value.display())),
+            context: ErrContext::from(format!("{:?}", value.display())),
         }
     }
 }
@@ -97,7 +97,7 @@ impl From<(&str, &Path)> for WithContext {
     fn from(value: (&str, &Path)) -> Self {
         Self {
             target: None,
-            context: ErrContext::from((value.0, format!("{}", value.1.display()))),
+            context: ErrContext::from((value.0, format!("{:?}", value.1.display()))),
         }
     }
 }
@@ -180,7 +180,7 @@ impl Display for ErrContext {
             writeln!(f, "\nerror context:")?;
         }
         for (k, v) in &self.items {
-            writeln!(f, "\t{} : {}", k, v)?;
+            writeln!(f, "\t{k} : {v}")?;
         }
         Ok(())
     }

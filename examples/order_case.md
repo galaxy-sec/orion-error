@@ -19,7 +19,7 @@
 3. **错误信息增强**：
    - 添加详细错误信息：
    ```rust
-   .with_detail(format!("当前余额：{}，需要：{}", balance, amount))
+   .with_detail(format!("当前余额：{balance}，需要：{amount}"))
    ```
 
 4. **错误展示**：

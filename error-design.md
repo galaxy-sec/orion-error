@@ -97,7 +97,7 @@ pub struct OrderError {
 
 1. **上下文丰富化**
    ```rust
-   err.with_detail(format!("当前余额：{}，需要：{}", balance, amount))
+   err.with_detail(format!("当前余额：{balance}，需要：{amount}"))
       .with_tag("critical")
       .with_metric("order_failure", 1.0)
    ```
@@ -116,7 +116,7 @@ pub struct OrderError {
    impl Display for PaymentError {
        fn fmt(&self, f: &mut Formatter) -> Result {
            // 屏蔽信用卡号
-           write!(f, "{}", self.message.replace(regex!(r"\d{4}-\d{4}-\d{4}"), "****"))
+           write!(f, "{:?}", self.message.replace(regex!(r"\d{4}-\d{4}-\d{4}"), "****"))
        }
    }
    ```
