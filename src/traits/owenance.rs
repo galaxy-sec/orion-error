@@ -1,6 +1,6 @@
 use crate::{
     core::{DomainReason, UvsNetFrom, UvsReason},
-    StructError, UvsBizFrom, UvsDataFrom, UvsResFrom, UvsRuleFrom, UvsSysFrom, UvsTimeoutFrom,
+    StructError, UvsDataFrom, UvsSysFrom, UvsTimeoutFrom,
 };
 
 /// 非结构错误(StructError) 转化为结构错误。
@@ -13,7 +13,7 @@ where
     fn owe(self, reason: R) -> Result<T, StructError<R>>;
     fn owe_logic(self) -> Result<T, StructError<R>>;
     fn owe_biz(self) -> Result<T, StructError<R>>;
-    fn owe_rule(self) -> Result<T, StructError<R>>;
+    fn owe_validation(self) -> Result<T, StructError<R>>;
     fn owe_data(self) -> Result<T, StructError<R>>;
     fn owe_conf(self) -> Result<T, StructError<R>>;
     fn owe_res(self) -> Result<T, StructError<R>>;
@@ -35,13 +35,13 @@ where
     }
 
     fn owe_logic(self) -> Result<T, StructError<R>> {
-        self.map_err(|e| StructError::from(R::from(UvsReason::from_sys(e.to_string()))))
+        self.map_err(|e| StructError::from(R::from(UvsReason::system_error(e.to_string()))))
     }
     fn owe_biz(self) -> Result<T, StructError<R>> {
-        self.map_err(|e| StructError::from(R::from(UvsReason::from_biz(e.to_string()))))
+        self.map_err(|e| StructError::from(R::from(UvsReason::business_error(e.to_string()))))
     }
-    fn owe_rule(self) -> Result<T, StructError<R>> {
-        self.map_err(|e| StructError::from(R::from(UvsReason::from_rule(e.to_string()))))
+    fn owe_validation(self) -> Result<T, StructError<R>> {
+        self.map_err(|e| StructError::from(R::from(UvsReason::validation_error(e.to_string()))))
     }
     fn owe_data(self) -> Result<T, StructError<R>> {
         self.map_err(|e| StructError::from(R::from(UvsReason::from_data(e.to_string(), None))))
@@ -50,7 +50,7 @@ where
         self.map_err(|e| StructError::from(R::from(UvsReason::core_conf(e.to_string()))))
     }
     fn owe_res(self) -> Result<T, StructError<R>> {
-        self.map_err(|e| StructError::from(R::from(UvsReason::from_res(e.to_string()))))
+        self.map_err(|e| StructError::from(R::from(UvsReason::resource_error(e.to_string()))))
     }
     fn owe_net(self) -> Result<T, StructError<R>> {
         self.map_err(|e| StructError::from(R::from(UvsReason::from_net(e.to_string()))))

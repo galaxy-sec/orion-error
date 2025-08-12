@@ -108,8 +108,8 @@ mod tests {
         let display_output = format!("{err}");
         println!("{display_output}");
 
-        assert!(display_output.contains("[105]")); // ConfError的error code
-        assert!(display_output.contains("conf error << core config > config missing"));
+        assert!(display_output.contains("[300]")); // ConfError的error code
+        assert!(display_output.contains("configuration error << core config > config missing"));
         assert!(display_output.contains("-> At: src/config.rs:42"));
         assert!(display_output.contains("-> Want: database_config"));
         assert!(display_output.contains("-> Details: missing db config"));

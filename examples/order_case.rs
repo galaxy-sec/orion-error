@@ -4,8 +4,7 @@
 
 use derive_more::From;
 use orion_error::{
-    print_error, ErrorCode, ErrorConv, ErrorOwe, ErrorWith, StructError, UvsBizFrom, UvsReason,
-    UvsSysFrom, WithContext,
+    print_error, ErrorCode, ErrorConv, ErrorOwe, ErrorWith, StructError, UvsReason, WithContext,
 };
 use serde::Serialize;
 use std::{
@@ -34,7 +33,7 @@ impl ErrorCode for OrderReason {
 
 #[derive(Debug, PartialEq, Clone, Serialize, Error, From)]
 pub enum StoreReason {
-    #[error("storeage full")]
+    #[error("storage full")]
     StorageFull,
     #[error("{0}")]
     Uvs(UvsReason),
@@ -57,7 +56,21 @@ pub enum ParseReason {
 }
 impl ErrorCode for ParseReason {
     fn error_code(&self) -> i32 {
-        500
+        match self {
+            ParseReason::FormatError => 400,
+            ParseReason::Uvs(uvs_reason) => uvs_reason.error_code(),
+        }
+    }
+}
+
+impl From<ParseReason> for OrderReason {
+    fn from(value: ParseReason) -> Self {
+        match value {
+            ParseReason::FormatError => {
+                Self::Uvs(UvsReason::validation_error("order format error"))
+            }
+            ParseReason::Uvs(uvs_reason) => Self::Uvs(uvs_reason),
+        }
     }
 }
 
@@ -72,7 +85,7 @@ pub enum UserReason {
 impl From<UserReason> for OrderReason {
     fn from(value: UserReason) -> Self {
         match value {
-            UserReason::NotFound => Self::Uvs(UvsReason::from_biz("logic fail".to_string())),
+            UserReason::NotFound => Self::Uvs(UvsReason::not_found_error("user not found")),
             UserReason::Uvs(uvs_reason) => Self::Uvs(uvs_reason),
         }
     }
@@ -81,7 +94,9 @@ impl From<UserReason> for OrderReason {
 impl From<StoreReason> for OrderReason {
     fn from(value: StoreReason) -> Self {
         match value {
-            StoreReason::StorageFull => Self::Uvs(UvsReason::from_sys("sys fail".to_string())),
+            StoreReason::StorageFull => {
+                Self::Uvs(UvsReason::resource_error("storage capacity exceeded"))
+            }
             StoreReason::Uvs(uvs_reason) => Self::Uvs(uvs_reason),
         }
     }
@@ -174,7 +189,13 @@ impl OrderService {
                 .err();
         }
 
-        // 模拟解析逻辑
+        // 模拟解析逻辑 - 验证金额
+        if amount <= 0.0 {
+            return ParseError::from(ParseReason::FormatError)
+                .with_detail("订单金额必须大于零")
+                .err();
+        }
+
         Ok(storage::Order {
             user_id: 123,
             amount,
@@ -235,6 +256,12 @@ fn main() {
     storage::STORAGE_CAPACITY.store(0, Ordering::Relaxed);
     let case4 = OrderService::place_order(123, 200.0, "valid_order");
     if let Err(e) = case4 {
+        print_error(&e);
+    }
+
+    // 测试用例 5: 金额验证失败
+    let case5 = OrderService::place_order(123, 0.0, "negative_amount");
+    if let Err(e) = case5 {
         print_error(&e);
     }
 }
