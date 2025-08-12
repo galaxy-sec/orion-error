@@ -4,7 +4,8 @@
 
 use derive_more::From;
 use orion_error::{
-    print_error, ErrorCode, ErrorConv, ErrorOwe, ErrorWith, StructError, UvsReason, WithContext,
+    print_error, ErrorCode, ErrorConv, ErrorOwe, ErrorWith, StructError, ToStructError, UvsReason,
+    WithContext,
 };
 use serde::Serialize;
 use std::{
@@ -207,9 +208,9 @@ impl OrderService {
         let balance = Self::get_balance(user_id).err_conv()?;
 
         if balance < amount {
-            StructError::from(OrderReason::InsufficientFunds)
-                .with_detail(format!("当前余额：{balance}，需要：{amount}"))
-                .err()
+            OrderReason::InsufficientFunds
+                .err_result()
+                .with(format!("当前余额：{balance}，需要：{amount}"))
         } else {
             Ok(())
         }
@@ -217,9 +218,9 @@ impl OrderService {
 
     fn get_balance(user_id: u32) -> Result<f64, UserError> {
         if user_id != 123 {
-            UserError::from(UserReason::NotFound)
-                .with_detail(format!("uid:{user_id}"))
-                .err()
+            UserReason::NotFound
+                .err_result()
+                .with(format!("uid:{user_id}"))
         } else {
             Ok(500.0)
         }
