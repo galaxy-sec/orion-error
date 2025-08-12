@@ -2,6 +2,8 @@ use serde::Serialize;
 use std::fmt::Display;
 use thiserror::Error;
 
+use crate::{DomainReason, StructError};
+
 use super::ErrorCode;
 
 #[derive(Debug, Error, PartialEq, Clone, Serialize)]
@@ -110,61 +112,75 @@ impl From<String> for ErrorPayload {
         Self::new(value)
     }
 }
-impl UvsConfFrom<UvsReason, String> for UvsReason {
-    fn from_conf(info: String) -> Self {
-        UvsReason::ConfError(ConfErrReason::Core(info))
+
+impl<T> UvsConfFrom<T, String> for T
+where
+    T: From<UvsReason>,
+{
+    fn from_conf(reason: String) -> T {
+        T::from(UvsReason::ConfError(ConfErrReason::Core(reason)))
     }
 }
 
-impl UvsConfFrom<UvsReason, ConfErrReason> for UvsReason {
-    fn from_conf(reason: ConfErrReason) -> Self {
-        UvsReason::ConfError(reason)
+impl<T> UvsConfFrom<T, ConfErrReason> for T
+where
+    T: From<UvsReason>,
+{
+    fn from_conf(reason: ConfErrReason) -> T {
+        T::from(UvsReason::ConfError(reason))
     }
 }
 
-impl UvsDataFrom<UvsReason, String> for UvsReason {
-    fn from_data(info: String, pos: Option<usize>) -> Self {
-        UvsReason::DataError(ErrorPayload::new(info), pos)
+impl<T> UvsDataFrom<T, String> for T
+where
+    T: From<UvsReason>,
+{
+    fn from_data(info: String, pos: Option<usize>) -> T {
+        T::from(UvsReason::DataError(ErrorPayload::new(info), pos))
     }
 }
 
-impl UvsSysFrom<UvsReason, String> for UvsReason {
-    fn from_sys(info: String) -> Self {
-        UvsReason::SysError(ErrorPayload::new(info))
-    }
-}
-impl UvsBizFrom<UvsReason, String> for UvsReason {
-    fn from_biz(info: String) -> Self {
-        UvsReason::SysError(ErrorPayload::new(info))
-    }
-}
-
-impl UvsRuleFrom<UvsReason, String> for UvsReason {
-    fn from_rule(info: String) -> Self {
-        UvsReason::RuleError(ErrorPayload::new(info))
+impl<T> UvsSysFrom<T, String> for T
+where
+    T: From<UvsReason>,
+{
+    fn from_sys(info: String) -> T {
+        T::from(UvsReason::SysError(ErrorPayload(info)))
     }
 }
 
-impl UvsLogicFrom<UvsReason, String> for UvsReason {
-    fn from_logic(info: String) -> Self {
-        UvsReason::LogicError(ErrorPayload::new(info))
+impl<T> UvsBizFrom<T, String> for T
+where
+    T: From<UvsReason>,
+{
+    fn from_biz(info: String) -> T {
+        T::from(UvsReason::BizError(ErrorPayload(info)))
     }
 }
 
-impl UvsResFrom<UvsReason, String> for UvsReason {
-    fn from_res(info: String) -> Self {
-        UvsReason::ResError(ErrorPayload::new(info))
+impl<T> UvsRuleFrom<T, String> for T
+where
+    T: From<UvsReason>,
+{
+    fn from_rule(info: String) -> T {
+        T::from(UvsReason::RuleError(ErrorPayload(info)))
+    }
+}
+impl<T> UvsLogicFrom<T, String> for T
+where
+    T: From<UvsReason>,
+{
+    fn from_logic(info: String) -> T {
+        T::from(UvsReason::LogicError(ErrorPayload(info)))
     }
 }
 
-impl UvsNetFrom<UvsReason, String> for UvsReason {
-    fn from_net(info: String) -> Self {
-        UvsReason::NetError(ErrorPayload::new(info))
-    }
-}
-impl UvsTimeoutFrom<UvsReason, String> for UvsReason {
-    fn from_timeout(info: String) -> Self {
-        UvsReason::Timeout(ErrorPayload::new(info))
+impl<T> UvsResFrom<T, String> for T
+where
+    T: From<UvsReason>,
+{
+    fn from_res(info: String) -> T {
+        T::from(UvsReason::ResError(ErrorPayload(info)))
     }
 }
 
@@ -182,5 +198,23 @@ impl ErrorCode for UvsReason {
             UvsReason::NetError(_) => 108,
             UvsReason::Timeout(_) => 109,
         }
+    }
+}
+
+impl<T> UvsNetFrom<T, String> for T
+where
+    T: From<UvsReason>,
+{
+    fn from_net(info: String) -> T {
+        T::from(UvsReason::BizError(ErrorPayload(info)))
+    }
+}
+
+impl<T> UvsTimeoutFrom<T, String> for T
+where
+    T: From<UvsReason>,
+{
+    fn from_timeout(info: String) -> T {
+        T::from(UvsReason::Timeout(ErrorPayload(info)))
     }
 }
