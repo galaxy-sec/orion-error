@@ -2,8 +2,6 @@ use serde::Serialize;
 use std::fmt::Display;
 use thiserror::Error;
 
-use crate::{DomainReason, StructError};
-
 use super::ErrorCode;
 
 #[derive(Debug, Error, PartialEq, Clone, Serialize)]
@@ -58,38 +56,38 @@ impl UvsReason {
     }
 }
 
-pub trait UvsConfFrom<T, S> {
-    fn from_conf(info: S) -> T;
+pub trait UvsConfFrom<S> {
+    fn from_conf(info: S) -> Self;
 }
 
-pub trait UvsDataFrom<T, S> {
-    fn from_data(info: S, pos: Option<usize>) -> T;
+pub trait UvsDataFrom<S> {
+    fn from_data(info: S, pos: Option<usize>) -> Self;
 }
 
-pub trait UvsSysFrom<T, S> {
-    fn from_sys(info: S) -> T;
+pub trait UvsSysFrom<S> {
+    fn from_sys(info: S) -> Self;
 }
-pub trait UvsRuleFrom<T, S> {
-    fn from_rule(info: S) -> T;
+pub trait UvsRuleFrom<S> {
+    fn from_rule(info: S) -> Self;
 }
-pub trait UvsLogicFrom<T, S> {
-    fn from_logic(info: S) -> T;
-}
-
-pub trait UvsBizFrom<T, S> {
-    fn from_biz(info: S) -> T;
+pub trait UvsLogicFrom<S> {
+    fn from_logic(info: S) -> Self;
 }
 
-pub trait UvsResFrom<T, S> {
-    fn from_res(info: S) -> T;
+pub trait UvsBizFrom<S> {
+    fn from_biz(info: S) -> Self;
 }
 
-pub trait UvsNetFrom<T, S> {
-    fn from_net(info: S) -> T;
+pub trait UvsResFrom<S> {
+    fn from_res(info: S) -> Self;
 }
 
-pub trait UvsTimeoutFrom<T, S> {
-    fn from_timeout(info: S) -> T;
+pub trait UvsNetFrom<S> {
+    fn from_net(info: S) -> Self;
+}
+
+pub trait UvsTimeoutFrom<S> {
+    fn from_timeout(info: S) -> Self;
 }
 
 /// 强类型错误负载包装
@@ -113,52 +111,52 @@ impl From<String> for ErrorPayload {
     }
 }
 
-impl<T> UvsConfFrom<T, String> for T
+impl<T> UvsConfFrom<String> for T
 where
     T: From<UvsReason>,
 {
-    fn from_conf(reason: String) -> T {
+    fn from_conf(reason: String) -> Self {
         T::from(UvsReason::ConfError(ConfErrReason::Core(reason)))
     }
 }
 
-impl<T> UvsConfFrom<T, ConfErrReason> for T
+impl<T> UvsConfFrom<ConfErrReason> for T
 where
     T: From<UvsReason>,
 {
-    fn from_conf(reason: ConfErrReason) -> T {
+    fn from_conf(reason: ConfErrReason) -> Self {
         T::from(UvsReason::ConfError(reason))
     }
 }
 
-impl<T> UvsDataFrom<T, String> for T
+impl<T> UvsDataFrom<String> for T
 where
     T: From<UvsReason>,
 {
-    fn from_data(info: String, pos: Option<usize>) -> T {
+    fn from_data(info: String, pos: Option<usize>) -> Self {
         T::from(UvsReason::DataError(ErrorPayload::new(info), pos))
     }
 }
 
-impl<T> UvsSysFrom<T, String> for T
+impl<T> UvsSysFrom<String> for T
 where
     T: From<UvsReason>,
 {
-    fn from_sys(info: String) -> T {
+    fn from_sys(info: String) -> Self {
         T::from(UvsReason::SysError(ErrorPayload(info)))
     }
 }
 
-impl<T> UvsBizFrom<T, String> for T
+impl<T> UvsBizFrom<String> for T
 where
     T: From<UvsReason>,
 {
-    fn from_biz(info: String) -> T {
+    fn from_biz(info: String) -> Self {
         T::from(UvsReason::BizError(ErrorPayload(info)))
     }
 }
 
-impl<T> UvsRuleFrom<T, String> for T
+impl<T> UvsRuleFrom<String> for T
 where
     T: From<UvsReason>,
 {
@@ -166,20 +164,20 @@ where
         T::from(UvsReason::RuleError(ErrorPayload(info)))
     }
 }
-impl<T> UvsLogicFrom<T, String> for T
+impl<T> UvsLogicFrom<String> for T
 where
     T: From<UvsReason>,
 {
-    fn from_logic(info: String) -> T {
+    fn from_logic(info: String) -> Self {
         T::from(UvsReason::LogicError(ErrorPayload(info)))
     }
 }
 
-impl<T> UvsResFrom<T, String> for T
+impl<T> UvsResFrom<String> for T
 where
     T: From<UvsReason>,
 {
-    fn from_res(info: String) -> T {
+    fn from_res(info: String) -> Self {
         T::from(UvsReason::ResError(ErrorPayload(info)))
     }
 }
@@ -201,20 +199,20 @@ impl ErrorCode for UvsReason {
     }
 }
 
-impl<T> UvsNetFrom<T, String> for T
+impl<T> UvsNetFrom<String> for T
 where
     T: From<UvsReason>,
 {
-    fn from_net(info: String) -> T {
+    fn from_net(info: String) -> Self {
         T::from(UvsReason::BizError(ErrorPayload(info)))
     }
 }
 
-impl<T> UvsTimeoutFrom<T, String> for T
+impl<T> UvsTimeoutFrom<String> for T
 where
     T: From<UvsReason>,
 {
-    fn from_timeout(info: String) -> T {
+    fn from_timeout(info: String) -> Self {
         T::from(UvsReason::Timeout(ErrorPayload(info)))
     }
 }

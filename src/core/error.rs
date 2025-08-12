@@ -5,7 +5,7 @@ use crate::ErrorWith;
 use super::{
     context::{ErrContext, WithContext},
     domain::DomainReason,
-    ContextAdd, ErrorCode,
+    ContextAdd, ErrorCode, UvsReason,
 };
 use derive_getters::Getters;
 use serde::Serialize;
