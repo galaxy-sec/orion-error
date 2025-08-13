@@ -76,6 +76,10 @@ pub enum UvsReason {
     /// Third-party service errors (第三方服务错误)
     #[error("external service error << {0}")]
     ExternalError(ErrorPayload),
+
+    /// Third-party service errors (第三方服务错误)
+    #[error("BUG :logic error << {0}")]
+    LogicError(ErrorPayload),
 }
 
 impl UvsReason {
@@ -134,6 +138,9 @@ impl UvsReason {
     pub fn external_error<S: Into<String>>(msg: S) -> Self {
         Self::ExternalError(ErrorPayload::new(msg))
     }
+    pub fn logic_error<S: Into<String>>(msg: S) -> Self {
+        Self::LogicError(ErrorPayload::new(msg))
+    }
 }
 
 // === Trait Definitions for Type Conversion ===
@@ -152,6 +159,9 @@ pub trait UvsSysFrom<S> {
 
 pub trait UvsBizFrom<S> {
     fn from_biz(info: S) -> Self;
+}
+pub trait UvsLogicFrom<S> {
+    fn from_logic(info: S) -> Self;
 }
 
 pub trait UvsResFrom<S> {
@@ -331,6 +341,15 @@ where
     }
 }
 
+impl<T> UvsLogicFrom<String> for T
+where
+    T: From<UvsReason>,
+{
+    fn from_logic(info: String) -> Self {
+        T::from(UvsReason::logic_error(info))
+    }
+}
+
 impl ErrorCode for UvsReason {
     fn error_code(&self) -> i32 {
         match self {
@@ -339,6 +358,7 @@ impl ErrorCode for UvsReason {
             UvsReason::BusinessError(_) => 101,
             UvsReason::NotFoundError(_) => 102,
             UvsReason::PermissionError(_) => 103,
+            UvsReason::LogicError(_) => 104,
 
             // === Infrastructure Layer Errors (200-299) ===
             UvsReason::DataError(_, _) => 200,
