@@ -12,7 +12,7 @@ pub use domain::DomainReason;
 pub use error::{convert_error, StructError, StructErrorTrait};
 pub use reason::ErrorCode;
 pub use universal::{
-    ConfErrReason, UvsBizFrom, UvsConfFrom, UvsDataFrom, UvsExternalFrom, UvsNetFrom,
+    ConfErrReason, UvsBizFrom, UvsConfFrom, UvsDataFrom, UvsExternalFrom, UvsLogicFrom, UvsNetFrom,
     UvsNotFoundFrom, UvsPermissionFrom, UvsReason, UvsResFrom, UvsSysFrom, UvsTimeoutFrom,
     UvsValidationFrom,
 };

@@ -397,6 +397,7 @@ impl UvsReason {
             // Configuration errors require manual intervention
             UvsReason::ConfigError(_) => false,
             UvsReason::DataError(_, _) => false,
+            UvsReason::LogicError(_) => false,
         }
     }
 
@@ -429,6 +430,7 @@ impl UvsReason {
             UvsReason::TimeoutError(_) => "timeout",
             UvsReason::ConfigError(_) => "config",
             UvsReason::ExternalError(_) => "external",
+            UvsReason::LogicError(_) => "logic",
         }
     }
 }
