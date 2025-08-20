@@ -69,7 +69,7 @@ jobs:
 
       # 上传到 Codecov，支持多分支和tag的coverage报告
       - name: Upload to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
           file: ./lcov.info
           flags: unittests
