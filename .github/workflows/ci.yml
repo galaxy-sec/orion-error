@@ -55,7 +55,6 @@ jobs:
       - uses: rustsec/audit-check@v1.4.1
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-
   coverage:
     name: Code Coverage
     runs-on: ubuntu-latest
@@ -67,27 +66,19 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - uses: taiki-e/install-action@cargo-llvm-cov
 
-      # 生成并压缩覆盖率报告
       - name: Generate coverage report
         run: |
           cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info -- --test-threads=1
-          gzip -9 lcov.info
+          echo "Coverage file generated:"
+          ls -la lcov.info
+          echo "File size: $(wc -c < lcov.info) bytes"
 
-      # 上传到 Codecov
       - name: Upload to Codecov
         uses: codecov/codecov-action@v5
         with:
-          file: ./lcov.info.gz
+          files: ./lcov.info
           flags: unittests
           name: coverage-${{ github.ref_name }}
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: ${{ github.event_name == 'push' }}
-
-      # 备选方案：上传 coverage artifact
-      - name: Upload coverage artifact
-        uses: actions/upload-artifact@v4
-        if: failure() && steps.upload-codecov.outcome == 'failure'
-        with:
-          name: coverage-lcov-${{ github.sha }}
-          path: lcov.info
-          retention-days: 30
+          verbose: true
