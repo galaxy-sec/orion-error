@@ -5,8 +5,8 @@ Structured error handling library for building large-scale applications, providi
 
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/galaxy-sec/orion-error)
 
-[![CI](https://github.com/galaxy-sec/orion-error/workflows/CI/badge.svg)](https://github.com/galaxy-sec/galaxy-ops/actions)
-[![Coverage Status](https://codecov.io/gh/galaxy-sec/orion-error/branch/main/graph/badge.svg)](https://codecov.io/gh/galaxy-sec/galaxy-ops)
+[![CI](https://github.com/galaxy-sec/orion-error/workflows/CI/badge.svg)](https://github.com/galaxy-sec/orion-error/actions)
+[![Coverage Status](https://codecov.io/gh/galaxy-sec/orion-error/branch/main/graph/badge.svg)](https://codecov.io/gh/galaxy-sec/orion-error)
 
 ## Features
 
