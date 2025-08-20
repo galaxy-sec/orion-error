@@ -70,6 +70,7 @@ impl<T: DomainReason> StructError<T> {
         }
     }
 }
+
 impl<T> From<T> for StructError<T>
 where
     T: DomainReason,
