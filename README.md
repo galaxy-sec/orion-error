@@ -5,12 +5,15 @@ Structured error handling library for building large-scale applications, providi
 
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/galaxy-sec/orion-error)
 
+[![CI](https://github.com/galaxy-sec/orion-error/workflows/CI/badge.svg)](https://github.com/galaxy-sec/galaxy-ops/actions)
+[![Coverage Status](https://codecov.io/gh/galaxy-sec/orion-error/branch/main/graph/badge.svg)](https://codecov.io/gh/galaxy-sec/galaxy-ops)
+
 ## Features
 
 - **Structured Errors**: Support multi-layer error aggregation with full error chain
 - **Hierarchical Error Classification**: Three-tier classification system with clear boundaries
   - **Business Layer (100-199)**: User-facing expected errors
-  - **Infrastructure Layer (200-299)**: System-level failures  
+  - **Infrastructure Layer (200-299)**: System-level failures
   - **Configuration & External Layer (300-399)**: Environment and third-party issues
 - **Error Types**: 10 specific error types with semantic meaning
 - **Smart Error Analysis**: Built-in retryability and severity assessment
@@ -88,26 +91,26 @@ fn complex_operation() -> Result<(), StructError<UvsReason>> {
     let mut ctx = WithContext::want("complex_operation");
     ctx.with("step", "validation");
     ctx.with("input_type", "user_request");
-    
+
     // Validation error with context
     validate_input(&request)
         .want("input validation")
         .with(&ctx)?;
-    
+
     ctx.with("step", "business_logic");
-    
+
     // Business error with context
     check_business_rules(&request)
         .want("business rules check")
         .with(&ctx)?;
-    
+
     ctx.with("step", "persistence");
-    
+
     // System error with context
     save_to_database(&processed_data)
         .want("data persistence")
         .with(&ctx)?;
-    
+
     Ok(())
 }
 ```
@@ -120,16 +123,16 @@ use orion_error::{UvsReason, StructError, ErrorOwe};
 fn process_with_strategies() -> Result<(), StructError<UvsReason>> {
     // Strategy 1: Convert to validation error
     let input = get_input().owe_validation()?;
-    
-    // Strategy 2: Convert to business error  
+
+    // Strategy 2: Convert to business error
     let validated = validate(input).owe_biz()?;
-    
+
     // Strategy 3: Convert to system error
     let result = process(validated).owe_sys()?;
-    
+
     // Strategy 4: Convert with custom reason
     let final_result = finalize(result).owe(UvsReason::business_error("finalization failed"))?;
-    
+
     Ok(final_result)
 }
 ```
@@ -141,10 +144,10 @@ use orion_error::UvsReason;
 fn robust_operation() -> Result<(), MyError> {
     let mut attempts = 0;
     let max_attempts = 3;
-    
+
     loop {
         attempts += 1;
-        
+
         match attempt_operation() {
             Ok(result) => return Ok(result),
             Err(error) => {
@@ -190,12 +193,12 @@ impl ErrorMonitor {
             message: error.to_string(),
             timestamp: chrono::Utc::now(),
         };
-        
+
         self.send_to_monitoring(event);
     }
-    
+
     fn should_alert(&self, error: &UvsReason) -> bool {
-        error.is_high_severity() || 
+        error.is_high_severity() ||
         error.error_code() >= 200 // Infrastructure layer errors
     }
 }
@@ -204,11 +207,11 @@ impl ErrorMonitor {
 fn handle_api_error(error: UvsReason) -> HttpResponse {
     let monitor = ErrorMonitor::new();
     monitor.track_error(&error);
-    
+
     if monitor.should_alert(&error) {
         alert_team(&error);
     }
-    
+
     // Convert error to HTTP response based on category
     match error.category_name() {
         "validation" => HttpResponse::BadRequest().json(error.to_string()),
@@ -253,7 +256,7 @@ let error = string_value.from_biz();
 let error = string_value.from_logic();
 let error = string_value.from_rule();
 
-// New way (v0.3)  
+// New way (v0.3)
 let error = UvsReason::from_biz(string_value);
 let error = UvsReason::from_validation(string_value);
 // Note: Rule errors have been removed, use ValidationError instead
@@ -267,9 +270,9 @@ BizError -> 101
 LogicError -> 100
 Timeout -> 109
 
-// New codes  
+// New codes
 ValidationError -> 100
-BusinessError -> 101  
+BusinessError -> 101
 NotFoundError -> 102
 PermissionError -> 103
 TimeoutError -> 204
