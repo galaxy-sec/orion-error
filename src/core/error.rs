@@ -1,6 +1,6 @@
 use std::{fmt::Display, ops::Deref};
 
-use crate::{ErrorWith };
+use crate::ErrorWith;
 
 use super::{
     context::{ErrContext, WithContext},
