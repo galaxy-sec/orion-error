@@ -7,6 +7,7 @@ Structured error handling library for building large-scale applications, providi
 
 [![CI](https://github.com/galaxy-sec/orion-error/workflows/CI/badge.svg)](https://github.com/galaxy-sec/orion-error/actions)
 [![Coverage Status](https://codecov.io/gh/galaxy-sec/orion-error/branch/main/graph/badge.svg)](https://codecov.io/gh/galaxy-sec/orion-error)
+[![crates.io](https://img.shields.io/crates/v/orion-error.svg)](https://crates.io/crates/orion-error)
 
 ## Features
 
