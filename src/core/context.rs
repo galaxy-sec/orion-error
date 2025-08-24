@@ -194,6 +194,29 @@ impl From<(&str, String)> for OperationContext {
         }
     }
 }
+// Marker trait to exclude types that are already covered by other implementations
+trait NotAsRefStr: AsRef<Path> {}
+
+// Implement for concrete path types but not for &str
+impl NotAsRefStr for PathBuf {}
+impl NotAsRefStr for Path {}
+impl<T: AsRef<Path> + ?Sized> NotAsRefStr for &T where T: NotAsRefStr {}
+
+impl<V: AsRef<Path>> From<(&str, V)> for OperationContext
+where
+    V: NotAsRefStr,
+{
+    fn from(value: (&str, V)) -> Self {
+        Self {
+            target: None,
+            context: CallContext {
+                items: vec![(value.0.to_string(), format!("{}", value.1.as_ref().display()))],
+            },
+            is_suc: false,
+            exit_log: false,
+        }
+    }
+}
 
 impl From<(String, String)> for OperationContext {
     fn from(value: (String, String)) -> Self {
@@ -229,15 +252,30 @@ pub trait ContextAdd<T> {
     fn add_context(&mut self, val: T);
 }
 
-impl<K: Into<String>, V: Into<String>> ContextAdd<(K, V)> for OperationContext {
-    fn add_context(&mut self, val: (K, V)) {
-        self.with(val.0, val.1);
+impl<K: Into<String>> ContextAdd<(K, String)> for OperationContext {
+    fn add_context(&mut self, val: (K, String)) {
+        self.with(val.0.into(), val.1);
+    }
+}
+impl<K: Into<String>> ContextAdd<(K, &String)> for OperationContext {
+    fn add_context(&mut self, val: (K, &String)) {
+        self.with(val.0.into(), val.1.clone());
+    }
+}
+impl<K: Into<String>> ContextAdd<(K, &str)> for OperationContext {
+    fn add_context(&mut self, val: (K, &str)) {
+        self.with(val.0.into(), val.1.to_string());
     }
 }
 
-impl<K: Into<String>, V: Into<String>> ContextAdd<(K, V)> for CallContext {
-    fn add_context(&mut self, val: (K, V)) {
-        self.items.push((val.0.into(), val.1.into()));
+impl<K: Into<String>> ContextAdd<(K, &PathBuf)> for OperationContext {
+    fn add_context(&mut self, val: (K, &PathBuf)) {
+        self.with(val.0.into(), format!("{}", val.1.display()));
+    }
+}
+impl<K: Into<String>> ContextAdd<(K, &Path)> for OperationContext {
+    fn add_context(&mut self, val: (K, &Path)) {
+        self.with(val.0.into(), format!("{}", val.1.display()));
     }
 }
 
@@ -498,6 +536,24 @@ mod tests {
             ctx2.context().items[0],
             ("key1".to_string(), "value1".to_string())
         );
+    }
+
+    #[test]
+    fn test_withcontext_from_str_path_pair() {
+        let path = PathBuf::from("/test/path");
+        let ctx = OperationContext::from(("file", &path));
+        assert_eq!(ctx.context().items.len(), 1);
+        assert_eq!(ctx.context().items[0].0, "file");
+        assert!(ctx.context().items[0].1.contains("/test/path"));
+    }
+
+    #[test]
+    fn test_withcontext_from_str_pathbuf_pair() {
+        let path = PathBuf::from("/test/pathbuf");
+        let ctx = OperationContext::from(("file", path));
+        assert_eq!(ctx.context().items.len(), 1);
+        assert_eq!(ctx.context().items[0].0, "file");
+        assert!(ctx.context().items[0].1.contains("/test/pathbuf"));
     }
 
     // ContextAdd trait tests are commented out due to trait implementation issues
