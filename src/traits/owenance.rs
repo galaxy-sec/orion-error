@@ -35,30 +35,57 @@ where
     }
 
     fn owe_logic(self) -> Result<T, StructError<R>> {
-        self.map_err(|e| StructError::from(R::from(UvsReason::system_error(e.to_string()))))
+        self.map_err(|e| {
+            StructError::from(R::from(UvsReason::logic_error(e.to_string())))
+                .with_detail(e.to_string())
+        })
     }
     fn owe_biz(self) -> Result<T, StructError<R>> {
-        self.map_err(|e| StructError::from(R::from(UvsReason::business_error(e.to_string()))))
+        self.map_err(|e| {
+            StructError::from(R::from(UvsReason::business_error(e.to_string())))
+                .with_detail(e.to_string())
+        })
     }
     fn owe_validation(self) -> Result<T, StructError<R>> {
-        self.map_err(|e| StructError::from(R::from(UvsReason::validation_error(e.to_string()))))
+        self.map_err(|e| {
+            StructError::from(R::from(UvsReason::validation_error(e.to_string())))
+                .with_detail(e.to_string())
+        })
     }
     fn owe_data(self) -> Result<T, StructError<R>> {
-        self.map_err(|e| StructError::from(R::from(UvsReason::from_data(e.to_string(), None))))
+        self.map_err(|e| {
+            StructError::from(R::from(UvsReason::from_data(e.to_string(), None)))
+                .with_detail(e.to_string())
+        })
     }
     fn owe_conf(self) -> Result<T, StructError<R>> {
-        self.map_err(|e| StructError::from(R::from(UvsReason::core_conf(e.to_string()))))
+        self.map_err(|e| {
+            StructError::from(R::from(UvsReason::core_conf(e.to_string())))
+                .with_detail(e.to_string())
+        })
     }
     fn owe_res(self) -> Result<T, StructError<R>> {
-        self.map_err(|e| StructError::from(R::from(UvsReason::resource_error(e.to_string()))))
+        self.map_err(|e| {
+            StructError::from(R::from(UvsReason::resource_error(e.to_string())))
+                .with_detail(e.to_string())
+        })
     }
     fn owe_net(self) -> Result<T, StructError<R>> {
-        self.map_err(|e| StructError::from(R::from(UvsReason::from_net(e.to_string()))))
+        self.map_err(|e| {
+            StructError::from(R::from(UvsReason::from_net(e.to_string())))
+                .with_detail(e.to_string())
+        })
     }
     fn owe_timeout(self) -> Result<T, StructError<R>> {
-        self.map_err(|e| StructError::from(R::from(UvsReason::from_timeout(e.to_string()))))
+        self.map_err(|e| {
+            StructError::from(R::from(UvsReason::from_timeout(e.to_string())))
+                .with_detail(e.to_string())
+        })
     }
     fn owe_sys(self) -> Result<T, StructError<R>> {
-        self.map_err(|e| StructError::from(R::from(UvsReason::from_sys(e.to_string()))))
+        self.map_err(|e| {
+            StructError::from(R::from(UvsReason::from_sys(e.to_string())))
+                .with_detail(e.to_string())
+        })
     }
 }
