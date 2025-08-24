@@ -4,34 +4,32 @@
 
 错误恢复模式是错误处理系统中的关键组成部分，定义了系统在面对各种错误情况时的自动恢复和容错机制。通过合理的恢复模式，可以显著提高系统的可靠性、可用性和用户体验，减少人工干预的需求。
 
+基于 `StructError<T>` 和 `UvsReason` 的错误恢复系统提供了灵活的错误分类和处理策略，支持多种恢复模式的实现。
+
 ## 恢复模式分类
 
 ### 自动恢复模式
 自动恢复模式是指系统能够自动检测到错误并执行恢复操作，无需人工干预的模式。
 
 #### 重试模式
-重试模式是最常用的自动恢复模式，适用于临时性故障。
+重试模式是最常用的自动恢复模式，适用于临时性故障。基于 `UvsReason` 的错误分类，我们可以智能地判断哪些错误可以重试。
 
 ```rust
 use std::time::Duration;
-use backoff::{ExponentialBackoff, backoff::Future};
 use tokio::time::sleep;
 use std::future::Future;
 use std::pin::Pin;
 
 type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
-pub trait Retryable {
-    fn is_retryable(&self) -> bool;
-}
-
+/// 重试配置结构体
 #[derive(Debug, Clone)]
 pub struct RetryConfig {
-    pub max_attempts: u32,
-    pub base_delay: Duration,
-    pub max_delay: Duration,
-    pub multiplier: f64,
-    pub jitter: bool,
+    pub max_attempts: u32,        // 最大重试次数
+    pub base_delay: Duration,      // 基础延迟时间
+    pub max_delay: Duration,       // 最大延迟时间
+    pub multiplier: f64,          // 延迟倍数
+    pub jitter: bool,             // 是否添加随机抖动
 }
 
 impl Default for RetryConfig {
@@ -46,19 +44,26 @@ impl Default for RetryConfig {
     }
 }
 
+/// 重试执行器
 pub struct RetryExecutor {
     config: RetryConfig,
+    context: OperationContext,
 }
 
 impl RetryExecutor {
     pub fn new(config: RetryConfig) -> Self {
-        Self { config }
+        Self {
+            config,
+            context: OperationContext::default()
+                .with_target("retry_executor")
+                .with("max_attempts", config.max_attempts.to_string()),
+        }
     }
     
-    pub async fn execute<F, T, E>(&self, operation: F) -> Result<T, E>
+    /// 执行带重试的操作
+    pub async fn execute<F, T>(&self, operation: F) -> Result<T, StructError<UvsReason>>
     where
-        F: Fn() -> BoxFuture<'_, Result<T, E>>,
-        E: Retryable + std::fmt::Debug,
+        F: Fn() -> BoxFuture<'_, Result<T, StructError<UvsReason>>>,
     {
         let mut attempt = 0;
         
@@ -67,17 +72,66 @@ impl RetryExecutor {
             let result = operation().await;
             
             match result {
-                Ok(success) => return Ok(success),
-                Err(error) if error.is_retryable() && attempt < self.config.max_attempts => {
+                Ok(success) => {
+                    self.context.info(&format!("Operation succeeded on attempt {}", attempt));
+                    return Ok(success);
+                }
+                Err(error) if self.is_retryable(&error) && attempt < self.config.max_attempts => {
                     let delay = self.calculate_delay(attempt);
-                    tokio::time::sleep(delay).await;
+                    
+                    self.context.warn(&format!(
+                        "Operation failed on attempt {}, retrying in {:?}: {}",
+                        attempt, delay, error
+                    ));
+                    
+                    sleep(delay).await;
                     continue;
                 }
-                Err(error) => return Err(error),
+                Err(error) => {
+                    self.context.error(&format!("Operation failed after {} attempts: {}", attempt, error));
+                    return Err(error);
+                }
             }
         }
     }
     
+    /// 判断错误是否可重试
+    fn is_retryable(&self, error: &StructError<UvsReason>) -> bool {
+        match error.reason {
+            // 网络错误通常可重试
+            UvsReason::NetworkError(_) => true,
+            
+            // 超时错误通常可重试
+            UvsReason::TimeoutError(_) => true,
+            
+            // 资源错误有时可重试
+            UvsReason::ResourceError(ref payload) => {
+                payload.message.contains("temporary") || 
+                payload.message.contains("retry")
+            }
+            
+            // 外部服务错误有时可重试
+            UvsReason::ExternalError(ref payload) => {
+                payload.message.contains("unavailable") ||
+                payload.message.contains("timeout")
+            }
+            
+            // 数据库错误有时可重试
+            UvsReason::DataError(_, ref index) => {
+                // 连接错误可重试，数据约束错误不可重试
+                if let Some(idx) = index {
+                    *idx == 0 // 假设索引0表示连接错误
+                } else {
+                    false
+                }
+            }
+            
+            // 其他错误通常不可重试
+            _ => false,
+        }
+    }
+    
+    /// 计算重试延迟时间
     fn calculate_delay(&self, attempt: u32) -> Duration {
         let delay_ms = self.config.base_delay.as_millis() as f64
             * self.config.multiplier.powi(attempt as i32 - 1);
@@ -99,7 +153,7 @@ impl RetryExecutor {
 }
 
 // 使用示例
-pub async fn fetch_data_with_retry(url: &str) -> Result<String, NetworkError> {
+pub async fn fetch_data_with_retry(url: &str) -> Result<String, StructError<UvsReason>> {
     let retry_config = RetryConfig {
         max_attempts: 5,
         base_delay: Duration::from_millis(200),
@@ -115,23 +169,53 @@ pub async fn fetch_data_with_retry(url: &str) -> Result<String, NetworkError> {
         })
     }).await
 }
+
+// 模拟数据获取函数
+async fn fetch_data(url: &str) -> Result<String, StructError<UvsReason>> {
+    // 模拟网络请求
+    if rand::random::<f64>() < 0.7 {
+        // 70% 概率失败
+        return Err(StructError::new(
+            UvsReason::NetworkError(ErrorPayload::new("network connection failed")),
+            Some("fetch_data".to_string()),
+        ));
+    }
+    
+    Ok(format!("Data from {}", url))
+}
 ```
 
 #### 指数退避重试
-指数退避重试是在重试模式基础上增加智能延迟的策略。
+指数退避重试是在重试模式基础上增加智能延迟的策略。基于 `UvsReason` 的错误分类，我们可以为不同类型的错误选择不同的退避策略。
 
 ```rust
+use std::time::Duration;
+use tokio::time::sleep;
+use std::future::Future;
+use std::pin::Pin;
+
+type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
+
+/// 退避策略枚举
+#[derive(Debug, Clone)]
+pub enum BackoffStrategy {
+    /// 指数退避
+    Exponential,
+    /// 线性退避
+    Linear,
+    /// 斐波那契退避
+    Fibonacci,
+    /// 自定义退避函数
+    Custom(Box<dyn Fn(u32) -> Duration + Send + Sync>),
+    /// 固定间隔
+    Fixed(Duration),
+}
+
+/// 指数退避重试执行器
 pub struct ExponentialBackoffRetry {
     config: RetryConfig,
     backoff_strategy: BackoffStrategy,
-}
-
-#[derive(Debug, Clone)]
-pub enum BackoffStrategy {
-    Exponential,
-    Linear,
-    Fibonacci,
-    Custom(Box<dyn Fn(u32) -> Duration + Send + Sync>),
+    context: OperationContext,
 }
 
 impl ExponentialBackoffRetry {
@@ -139,13 +223,17 @@ impl ExponentialBackoffRetry {
         Self {
             config,
             backoff_strategy: strategy,
+            context: OperationContext::default()
+                .with_target("exponential_backoff_retry")
+                .with("strategy", format!("{:?}", strategy))
+                .with("max_attempts", config.max_attempts.to_string()),
         }
     }
     
-    pub async fn execute_with_backoff<F, T, E>(&self, operation: F) -> Result<T, E>
+    /// 执行带退避重试的操作
+    pub async fn execute_with_backoff<F, T>(&self, operation: F) -> Result<T, StructError<UvsReason>>
     where
-        F: Fn() -> BoxFuture<'_, Result<T, E>>,
-        E: Retryable + std::fmt::Debug,
+        F: Fn() -> BoxFuture<'_, Result<T, StructError<UvsReason>>>,
     {
         let mut attempt = 0;
         
@@ -154,29 +242,120 @@ impl ExponentialBackoffRetry {
             let result = operation().await;
             
             match result {
-                Ok(success) => return Ok(success),
-                Err(error) if error.is_retryable() && attempt < self.config.max_attempts => {
-                    let delay = self.calculate_backoff_delay(attempt);
+                Ok(success) => {
+                    self.context.info(&format!("Operation succeeded on attempt {}", attempt));
+                    return Ok(success);
+                }
+                Err(error) if self.is_retryable(&error) && attempt < self.config.max_attempts => {
+                    let delay = self.calculate_backoff_delay(&error, attempt);
                     
-                    // 记录重试日志
-                    info!(
-                        "操作失败，第 {} 次重试，延迟 {:?}: {:?}",
-                        attempt, delay, error
-                    );
+                    // 根据错误类型选择不同的日志级别
+                    match error.reason {
+                        UvsReason::NetworkError(_) => {
+                            self.context.warn(&format!(
+                                "Network error, attempt {} of {}, retrying in {:?}: {}",
+                                attempt, self.config.max_attempts, delay, error
+                            ));
+                        }
+                        UvsReason::TimeoutError(_) => {
+                            self.context.warn(&format!(
+                                "Timeout error, attempt {} of {}, retrying in {:?}: {}",
+                                attempt, self.config.max_attempts, delay, error
+                            ));
+                        }
+                        _ => {
+                            self.context.info(&format!(
+                                "Retryable error, attempt {} of {}, retrying in {:?}: {}",
+                                attempt, self.config.max_attempts, delay, error
+                            ));
+                        }
+                    }
                     
                     sleep(delay).await;
                     continue;
                 }
                 Err(error) => {
-                    error!("操作最终失败: {:?}", error);
+                    self.context.error(&format!("Operation failed after {} attempts: {}", attempt, error));
                     return Err(error);
                 }
             }
         }
     }
     
-    fn calculate_backoff_delay(&self, attempt: u32) -> Duration {
-        match &self.backoff_strategy {
+    /// 判断错误是否可重试
+    fn is_retryable(&self, error: &StructError<UvsReason>) -> bool {
+        match error.reason {
+            // 网络错误通常可重试
+            UvsReason::NetworkError(_) => true,
+            
+            // 超时错误通常可重试
+            UvsReason::TimeoutError(_) => true,
+            
+            // 资源错误有时可重试
+            UvsReason::ResourceError(ref payload) => {
+                payload.message.contains("temporary") || 
+                payload.message.contains("retry") ||
+                payload.message.contains("busy")
+            }
+            
+            // 外部服务错误有时可重试
+            UvsReason::ExternalError(ref payload) => {
+                payload.message.contains("unavailable") ||
+                payload.message.contains("timeout") ||
+                payload.message.contains("overload")
+            }
+            
+            // 数据库错误有时可重试
+            UvsReason::DataError(_, ref index) => {
+                if let Some(idx) = index {
+                    // 假设索引0表示连接错误，1表示事务错误
+                    *idx == 0 || *idx == 1
+                } else {
+                    false
+                }
+            }
+            
+            // 其他错误通常不可重试
+            _ => false,
+        }
+    }
+    
+    /// 根据错误类型和退避策略计算延迟时间
+    fn calculate_backoff_delay(&self, error: &StructError<UvsReason>, attempt: u32) -> Duration {
+        // 根据错误类型调整退避策略
+        let strategy = match error.reason {
+            // 网络错误使用指数退避
+            UvsReason::NetworkError(_) => {
+                if let BackoffStrategy::Custom(_) = self.backoff_strategy {
+                    &self.backoff_strategy
+                } else {
+                    &BackoffStrategy::Exponential
+                }
+            }
+            
+            // 超时错误使用线性退避
+            UvsReason::TimeoutError(_) => {
+                if let BackoffStrategy::Custom(_) = self.backoff_strategy {
+                    &self.backoff_strategy
+                } else {
+                    &BackoffStrategy::Linear
+                }
+            }
+            
+            // 资源错误使用斐波那契退避
+            UvsReason::ResourceError(_) => {
+                if let BackoffStrategy::Custom(_) = self.backoff_strategy {
+                    &self.backoff_strategy
+                } else {
+                    &BackoffStrategy::Fibonacci
+                }
+            }
+            
+            // 其他错误使用配置的策略
+            _ => &self.backoff_strategy,
+        };
+        
+        match strategy {
             BackoffStrategy::Exponential => {
                 let delay = self.config.base_delay * 2u32.pow(attempt - 1);
                 std::cmp::min(delay, self.config.max_delay)
@@ -191,10 +370,14 @@ impl ExponentialBackoffRetry {
             },
             BackoffStrategy::Custom(func) => {
                 std::cmp::min(func(attempt), self.config.max_delay)
+            },
+            BackoffStrategy::Fixed(duration) => {
+                *duration
             }
         }
     }
     
+    /// 计算斐波那契数列
     fn fibonacci(&self, n: u32) -> u32 {
         match n {
             0 => 0,
@@ -212,10 +395,79 @@ impl ExponentialBackoffRetry {
         }
     }
 }
+
+// 使用示例：为不同类型的错误选择不同的退避策略
+pub async fn fetch_data_with_adaptive_backoff(url: &str) -> Result<String, StructError<UvsReason>> {
+    let retry_config = RetryConfig {
+        max_attempts: 5,
+        base_delay: Duration::from_millis(100),
+        max_delay: Duration::from_secs(30),
+        multiplier: 1.5,
+        jitter: true,
+    };
+    
+    // 使用自定义退避策略
+    let custom_strategy = BackoffStrategy::Custom(Box::new(|attempt| {
+        // 根据重试次数动态调整延迟
+        match attempt {
+            1 => Duration::from_millis(100),
+            2 => Duration::from_millis(500),
+            3 => Duration::from_secs(2),
+            4 => Duration::from_secs(5),
+            _ => Duration::from_secs(10),
+        }
+    }));
+    
+    let executor = ExponentialBackoffRetry::new(retry_config, custom_strategy);
+    
+    executor.execute_with_backoff(|| {
+        Box::pin(async {
+            fetch_data_with_context(url).await
+        })
+    }).await
+}
+
+// 带上下文的数据获取函数
+async fn fetch_data_with_context(url: &str) -> Result<String, StructError<UvsReason>> {
+    let ctx = OperationContext::default()
+        .with_target("fetch_data")
+        .with("url", url.to_string());
+    
+    // 模拟不同类型的错误
+    let error_type = rand::random::<u32>() % 4;
+    
+    match error_type {
+        0 => {
+            ctx.warn("Network error occurred");
+            Err(StructError::new(
+                UvsReason::NetworkError(ErrorPayload::new("connection timeout")),
+                Some("fetch_data".to_string()),
+            ))
+        }
+        1 => {
+            ctx.warn("Timeout error occurred");
+            Err(StructError::new(
+                UvsReason::TimeoutError(ErrorPayload::new("operation timeout")),
+                Some("fetch_data".to_string()),
+            ))
+        }
+        2 => {
+            ctx.warn("Resource error occurred");
+            Err(StructError::new(
+                UvsReason::ResourceError(ErrorPayload::new("resource temporarily unavailable")),
+                Some("fetch_data".to_string()),
+            ))
+        }
+        _ => {
+            ctx.info("Data fetched successfully");
+            Ok(format!("Data from {}", url))
+        }
+    }
+}
 ```
 
 ### 隔离模式
-隔离模式通过将系统资源进行隔离，防止错误在组件间传播。
+隔离模式通过将系统资源进行隔离，防止错误在组件间传播。基于 `StructError<T>` 和 `UvsReason`，我们可以实现更智能的隔离策略。
 
 #### 舱壁模式
 舱壁模式通过限制资源使用，防止单个组件的错误影响整个系统。
@@ -226,19 +478,44 @@ use std::sync::atomic::{AtomicU32, AtomicBool, Ordering};
 use tokio::sync::Semaphore;
 use std::time::Duration;
 
+/// 舱壁模式执行器
 pub struct Bulkhead {
     semaphore: Arc<Semaphore>,
     max_concurrent: u32,
     timeout: Duration,
     active_requests: AtomicU32,
     circuit_breaker: Arc<CircuitBreaker>,
+    context: OperationContext,
 }
 
+/// 舱壁模式配置
 #[derive(Debug, Clone)]
 pub struct BulkheadConfig {
     pub max_concurrent: u32,
     pub timeout: Duration,
     pub circuit_breaker_config: CircuitBreakerConfig,
+}
+
+/// 舱壁模式错误类型
+#[derive(Debug, Clone)]
+pub enum BulkheadError {
+    CircuitOpen,
+    SemaphoreClosed,
+    Timeout,
+    ResourceExhausted,
+    OperationError(String),
+}
+
+impl From<BulkheadError> for UvsReason {
+    fn from(err: BulkheadError) -> Self {
+        match err {
+            BulkheadError::CircuitOpen => UvsReason::ExternalError(ErrorPayload::new("circuit breaker open")),
+            BulkheadError::SemaphoreClosed => UvsReason::ResourceError(ErrorPayload::new("semaphore closed")),
+            BulkheadError::Timeout => UvsReason::TimeoutError(ErrorPayload::new("bulkhead timeout")),
+            BulkheadError::ResourceExhausted => UvsReason::ResourceError(ErrorPayload::new("resource exhausted")),
+            BulkheadError::OperationError(msg) => UvsReason::ExternalError(ErrorPayload::new(&msg)),
+        }
+    }
 }
 
 impl Bulkhead {
@@ -249,32 +526,67 @@ impl Bulkhead {
             timeout: config.timeout,
             active_requests: AtomicU32::new(0),
             circuit_breaker: Arc::new(CircuitBreaker::new(config.circuit_breaker_config)),
+            context: OperationContext::default()
+                .with_target("bulkhead")
+                .with("max_concurrent", config.max_concurrent.to_string())
+                .with("timeout", format!("{:?}", config.timeout)),
         }
     }
     
-    pub async fn execute<F, T, E>(&self, operation: F) -> Result<T, BulkheadError<E>>
+    /// 执行舱壁模式操作
+    pub async fn execute<F, T>(&self, operation: F) -> Result<T, StructError<UvsReason>>
     where
-        F: FnOnce() -> BoxFuture<'_, Result<T, E>>,
-        E: std::fmt::Debug,
+        F: FnOnce() -> BoxFuture<'_, Result<T, StructError<UvsReason>>>,
     {
         // 检查断路器状态
         if self.circuit_breaker.is_open() {
-            return Err(BulkheadError::CircuitOpen);
+            self.context.warn("Circuit breaker is open, rejecting request");
+            return Err(StructError::new(
+                UvsReason::from(BulkheadError::CircuitOpen),
+                Some("bulkhead_execute".to_string()),
+            ));
         }
         
         // 获取许可
-        let permit = tokio::time::timeout(
+        let permit_result = tokio::time::timeout(
             self.timeout,
             self.semaphore.acquire()
         ).await;
         
-        let permit = match permit {
-            Ok(Ok(permit)) => permit,
-            Ok(Err(_)) => return Err(BulkheadError::SemaphoreClosed),
-            Err(_) => return Err(BulkheadError::Timeout),
+        let permit = match permit_result {
+            Ok(Ok(permit)) => {
+                self.context.debug("Acquired semaphore permit");
+                permit
+            }
+            Ok(Err(_)) => {
+                self.context.warn("Semaphore closed");
+                return Err(StructError::new(
+                    UvsReason::from(BulkheadError::SemaphoreClosed),
+                    Some("bulkhead_execute".to_string()),
+                ));
+            }
+            Err(_) => {
+                self.context.warn("Timeout while acquiring semaphore permit");
+                return Err(StructError::new(
+                    UvsReason::from(BulkheadError::Timeout),
+                    Some("bulkhead_execute".to_string()),
+                ));
+            }
         };
         
-        self.active_requests.fetch_add(1, Ordering::Relaxed);
+        let active_count = self.active_requests.fetch_add(1, Ordering::Relaxed);
+        self.context.debug(&format!("Active requests: {}", active_count + 1));
+        
+        // 检查资源是否耗尽
+        if active_count >= self.max_concurrent {
+            self.active_requests.fetch_sub(1, Ordering::Relaxed);
+            drop(permit);
+            self.context.warn("Resource exhausted");
+            return Err(StructError::new(
+                UvsReason::from(BulkheadError::ResourceExhausted),
+                Some("bulkhead_execute".to_string()),
+            ));
+        }
         
         // 执行操作
         let result = tokio::time::timeout(
@@ -288,89 +600,182 @@ impl Bulkhead {
         match result {
             Ok(Ok(success)) => {
                 self.circuit_breaker.record_success();
+                self.context.info("Operation completed successfully");
                 Ok(success)
             },
             Ok(Err(error)) => {
                 self.circuit_breaker.record_failure();
-                Err(BulkheadError::OperationError(error))
+                self.context.error(&format!("Operation failed: {}", error));
+                Err(error)
             },
             Err(_) => {
                 self.circuit_breaker.record_failure();
-                Err(BulkheadError::Timeout)
+                self.context.warn("Operation timed out");
+                Err(StructError::new(
+                    UvsReason::from(BulkheadError::Timeout),
+                    Some("bulkhead_execute".to_string()),
+                ))
             }
         }
     }
     
+    /// 获取当前活跃请求数
     pub fn active_requests(&self) -> u32 {
         self.active_requests.load(Ordering::Relaxed)
     }
     
+    /// 获取可用许可数
     pub fn available_permits(&self) -> u32 {
         self.semaphore.available_permits() as u32
     }
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum BulkheadError<E> {
-    #[error("断路器处于开启状态")]
-    CircuitOpen,
     
-    #[error("信号量已关闭")]
-    SemaphoreClosed,
+    /// 检查是否过载
+    pub fn is_overloaded(&self) -> bool {
+        let active = self.active_requests();
+        let threshold = (self.max_concurrent as f64 * 0.8) as u32;
+        active >= threshold
+    }
     
-    #[error("操作超时")]
-    Timeout,
-    
-    #[error("操作执行失败: {0}")]
-    OperationError(E),
-}
-
-impl<E> Retryable for BulkheadError<E> {
-    fn is_retryable(&self) -> bool {
-        match self {
-            BulkheadError::CircuitOpen => true,
-            BulkheadError::Timeout => true,
-            _ => false,
+    /// 获取系统状态
+    pub fn system_status(&self) -> SystemStatus {
+        let active = self.active_requests();
+        let available = self.available_permits();
+        let is_overloaded = self.is_overloaded();
+        let circuit_breaker_open = self.circuit_breaker.is_open();
+        
+        SystemStatus {
+            active_requests: active,
+            available_permits: available,
+            max_concurrent: self.max_concurrent,
+            is_overloaded,
+            circuit_breaker_open,
         }
     }
+}
+
+/// 系统状态信息
+#[derive(Debug, Clone)]
+pub struct SystemStatus {
+    pub active_requests: u32,
+    pub available_permits: u32,
+    pub max_concurrent: u32,
+    pub is_overloaded: bool,
+    pub circuit_breaker_open: bool,
+}
+
+// 使用示例：带舱壁模式的API调用
+pub async fn execute_api_call_with_bulkhead<F, T>(
+    operation: F,
+    max_concurrent: u32,
+    timeout: Duration,
+) -> Result<T, StructError<UvsReason>>
+where
+    F: FnOnce() -> BoxFuture<'_, Result<T, StructError<UvsReason>>>,
+{
+    let config = BulkheadConfig {
+        max_concurrent,
+        timeout,
+        circuit_breaker_config: CircuitBreakerConfig {
+            failure_threshold: 5,
+            success_threshold: 3,
+            timeout: Duration::from_secs(30),
+        },
+    };
+    
+    let bulkhead = Bulkhead::new(config);
+    
+    // 执行操作
+    bulkhead.execute(operation).await
+}
+
+// 模拟API调用
+async fn external_api_call(endpoint: &str) -> Result<String, StructError<UvsReason>> {
+    let ctx = OperationContext::default()
+        .with_target("external_api_call")
+        .with("endpoint", endpoint.to_string());
+    
+    // 模拟网络延迟
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    
+    // 模拟随机错误
+    if rand::random::<f64>() < 0.15 {
+        ctx.warn("API call failed");
+        return Err(StructError::new(
+            UvsReason::NetworkError(ErrorPayload::new("API call failed")),
+            Some("external_api_call".to_string()),
+        ));
+    }
+    
+    // 模拟API响应
+    let response = format!("Response from {}", endpoint);
+    ctx.info("API call successful");
+    Ok(response)
+}
+
+// 使用舱壁模式的安全API调用
+pub async fn safe_api_call(endpoint: &str) -> Result<String, StructError<UvsReason>> {
+    execute_api_call_with_bulkhead(
+        || {
+            let endpoint = endpoint.to_string();
+            Box::pin(async move {
+                external_api_call(&endpoint).await
+            })
+        },
+        20, // 最大并发数
+        Duration::from_secs(10), // 超时时间
+    ).await
 }
 ```
 
 ### 断路器模式
-断路器模式在系统连续失败时暂时停止请求，避免资源浪费。
+断路器模式在系统连续失败时暂时停止请求，避免资源浪费。基于 `StructError<T>` 和 `UvsReason`，我们可以实现更智能的断路器策略。
 
 ```rust
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, AtomicU8, AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 use tokio::time::sleep;
+use std::collections::VecDeque;
 
+/// 断路器配置
 #[derive(Debug, Clone)]
 pub struct CircuitBreakerConfig {
     pub failure_threshold: u32,
+    pub success_threshold: u32,
+    pub timeout: Duration,
     pub recovery_timeout: Duration,
-    pub expected_exception_predicate: Option<Box<dyn Fn(&str) -> bool + Send + Sync>>,
-    pub ring_buffer_size_in_half_open_state: u32,
+    pub half_open_max_calls: u32,
 }
 
 impl Default for CircuitBreakerConfig {
     fn default() -> Self {
         Self {
             failure_threshold: 5,
+            success_threshold: 3,
+            timeout: Duration::from_secs(30),
             recovery_timeout: Duration::from_secs(60),
-            expected_exception_predicate: None,
-            ring_buffer_size_in_half_open_state: 10,
+            half_open_max_calls: 10,
         }
     }
 }
 
+/// 断路器状态
+#[derive(Debug, Clone, PartialEq)]
+pub enum CircuitBreakerState {
+    Closed,      // 关闭状态，正常请求
+    Open,        // 开启状态，拒绝请求
+    HalfOpen,    // 半开状态，允许部分请求
+}
+
+/// 断路器执行器
 pub struct CircuitBreaker {
     state: AtomicU8,
     failure_count: AtomicU32,
-    last_failure_time: AtomicU64,
     success_count: AtomicU32,
+    last_failure_time: AtomicU64,
     config: CircuitBreakerConfig,
-    ring_buffer_half_open: Arc<std::sync::Mutex<VecDeque<bool>>>,
+    half_open_results: Arc<std::sync::Mutex<VecDeque<bool>>>,
+    context: OperationContext,
 }
 
 const STATE_CLOSED: u8 = 0;
@@ -382,31 +787,272 @@ impl CircuitBreaker {
         Self {
             state: AtomicU8::new(STATE_CLOSED),
             failure_count: AtomicU32::new(0),
-            last_failure_time: AtomicU64::new(0),
             success_count: AtomicU32::new(0),
+            last_failure_time: AtomicU64::new(0),
             config,
-            ring_buffer_half_open: Arc::new(std::sync::Mutex::new(VecDeque::new())),
+            half_open_results: Arc::new(std::sync::Mutex::new(VecDeque::new())),
+            context: OperationContext::default()
+                .with_target("circuit_breaker")
+                .with("failure_threshold", config.failure_threshold.to_string())
+                .with("success_threshold", config.success_threshold.to_string())
+                .with("timeout", format!("{:?}", config.timeout)),
         }
     }
     
+    /// 检查断路器是否开启
     pub fn is_open(&self) -> bool {
         self.state.load(Ordering::Relaxed) == STATE_OPEN
     }
     
+    /// 获取当前状态
+    pub fn get_state(&self) -> CircuitBreakerState {
+        match self.state.load(Ordering::Relaxed) {
+            STATE_CLOSED => CircuitBreakerState::Closed,
+            STATE_OPEN => CircuitBreakerState::Open,
+            STATE_HALF_OPEN => CircuitBreakerState::HalfOpen,
+            _ => CircuitBreakerState::Closed,
+        }
+    }
+    
+    /// 记录成功
     pub fn record_success(&self) {
         let current_state = self.state.load(Ordering::Relaxed);
         
         match current_state {
             STATE_CLOSED => {
                 self.failure_count.store(0, Ordering::Relaxed);
+                self.context.debug("Success recorded in closed state");
             },
             STATE_HALF_OPEN => {
-                let mut buffer = self.ring_buffer_half_open.lock().unwrap();
-                buffer.push_back(true);
+                let mut results = self.half_open_results.lock().unwrap();
+                results.push_back(true);
                 
-                if buffer.len() >= self.config.ring_buffer_size_in_half_open_state as usize {
-                    if buffer.iter().all(|&success| success) {
+                self.context.debug(&format!("Success recorded in half-open state, results: {:?}", results));
+                
+                // 检查是否达到成功阈值
+                if results.len() >= self.config.success_threshold as usize {
+                    let success_count = results.iter().filter(|&&success| success).count();
+                    if success_count >= self.config.success_threshold as usize {
                         self.transition_to_closed_state();
+                    }
+                }
+                
+                // 检查是否达到最大调用次数
+                if results.len() >= self.config.half_open_max_calls as usize {
+                    let success_count = results.iter().filter(|&&success| success).count();
+                    if success_count < self.config.success_threshold as usize {
+                        self.transition_to_open_state();
+                    }
+                }
+            },
+            _ => {}
+        }
+    }
+    
+    /// 记录失败
+    pub fn record_failure(&self) {
+        let current_state = self.state.load(Ordering::Relaxed);
+        
+        match current_state {
+            STATE_CLOSED => {
+                let failures = self.failure_count.fetch_add(1, Ordering::Relaxed) + 1;
+                
+                if failures >= self.config.failure_threshold {
+                    self.transition_to_open_state();
+                } else {
+                    self.context.warn(&format!("Failure recorded in closed state, count: {}", failures));
+                }
+            },
+            STATE_HALF_OPEN => {
+                let mut results = self.half_open_results.lock().unwrap();
+                results.push_back(false);
+                
+                self.context.warn(&format!("Failure recorded in half-open state, results: {:?}", results));
+                
+                // 半开状态下任何失败都会立即打开断路器
+                self.transition_to_open_state();
+            },
+            _ => {}
+        }
+    }
+    
+    /// 记录特定类型的失败
+    pub fn record_failure_with_reason(&self, error: &StructError<UvsReason>) {
+        // 根据错误类型调整断路器策略
+        match error.reason {
+            // 网络错误和超时错误更容易触发断路器
+            UvsReason::NetworkError(_) | UvsReason::TimeoutError(_) => {
+                self.context.warn(&format!("Network/timeout error recorded: {}", error));
+                self.record_failure();
+            }
+            
+            // 资源错误和外部服务错误也可能触发断路器
+            UvsReason::ResourceError(_) | UvsReason::ExternalError(_) => {
+                self.context.warn(&format!("Resource/external error recorded: {}", error));
+                self.record_failure();
+            }
+            
+            // 其他错误可能不会触发断路器
+            _ => {
+                self.context.debug(&format!("Non-critical error recorded: {}", error));
+                // 可以选择性地记录失败
+            }
+        }
+    }
+    
+    /// 转换到关闭状态
+    fn transition_to_closed_state(&self) {
+        self.state.store(STATE_CLOSED, Ordering::Relaxed);
+        self.failure_count.store(0, Ordering::Relaxed);
+        self.success_count.store(0, Ordering::Relaxed);
+        self.half_open_results.lock().unwrap().clear();
+        self.context.info("Circuit breaker transitioned to CLOSED state");
+    }
+    
+    /// 转换到开启状态
+    fn transition_to_open_state(&self) {
+        self.state.store(STATE_OPEN, Ordering::Relaxed);
+        self.last_failure_time.store(
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
+            Ordering::Relaxed
+        );
+        self.half_open_results.lock().unwrap().clear();
+        self.context.error("Circuit breaker transitioned to OPEN state");
+    }
+    
+    /// 转换到半开状态
+    fn transition_to_half_open_state(&self) {
+        self.state.store(STATE_HALF_OPEN, Ordering::Relaxed);
+        self.failure_count.store(0, Ordering::Relaxed);
+        self.success_count.store(0, Ordering::Relaxed);
+        self.half_open_results.lock().unwrap().clear();
+        self.context.info("Circuit breaker transitioned to HALF-OPEN state");
+    }
+    
+    /// 检查是否应该尝试恢复
+    pub fn should_attempt_recovery(&self) -> bool {
+        if self.state.load(Ordering::Relaxed) != STATE_OPEN {
+            return false;
+        }
+        
+        let last_failure = self.last_failure_time.load(Ordering::Relaxed);
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        
+        let elapsed = Duration::from_secs(now - last_failure);
+        elapsed >= self.config.recovery_timeout
+    }
+    
+    /// 获取断路器统计信息
+    pub fn get_stats(&self) -> CircuitBreakerStats {
+        CircuitBreakerStats {
+            state: self.get_state(),
+            failure_count: self.failure_count.load(Ordering::Relaxed),
+            success_count: self.success_count.load(Ordering::Relaxed),
+            last_failure_time: self.last_failure_time.load(Ordering::Relaxed),
+            config: self.config.clone(),
+        }
+    }
+}
+
+/// 断路器统计信息
+#[derive(Debug, Clone)]
+pub struct CircuitBreakerStats {
+    pub state: CircuitBreakerState,
+    pub failure_count: u32,
+    pub success_count: u32,
+    pub last_failure_time: u64,
+    pub config: CircuitBreakerConfig,
+}
+
+// 使用示例：带断路器的服务调用
+pub async fn execute_with_circuit_breaker<F, T>(
+    operation: F,
+    circuit_breaker: Arc<CircuitBreaker>,
+) -> Result<T, StructError<UvsReason>>
+where
+    F: FnOnce() -> BoxFuture<'_, Result<T, StructError<UvsReason>>>,
+{
+    // 检查断路器状态
+    if circuit_breaker.is_open() {
+        if circuit_breaker.should_attempt_recovery() {
+            circuit_breaker.transition_to_half_open_state();
+        } else {
+            return Err(StructError::new(
+                UvsReason::ExternalError(ErrorPayload::new("circuit breaker is open")),
+                Some("circuit_breaker_execute".to_string()),
+            ));
+        }
+    }
+    
+    // 执行操作
+    let result = operation().await;
+    
+    // 记录结果
+    match &result {
+        Ok(_) => {
+            circuit_breaker.record_success();
+        }
+        Err(error) => {
+            circuit_breaker.record_failure_with_reason(error);
+        }
+    }
+    
+    result
+}
+
+// 模拟服务调用
+async fn unreliable_service_call(service: &str) -> Result<String, StructError<UvsReason>> {
+    let ctx = OperationContext::default()
+        .with_target("unreliable_service_call")
+        .with("service", service.to_string());
+    
+    // 模拟服务延迟
+    tokio::time::sleep(Duration::from_millis(150)).await;
+    
+    // 模拟服务失败
+    if rand::random::<f64>() < 0.3 {
+        ctx.warn("Service call failed");
+        return Err(StructError::new(
+            UvsReason::ExternalError(ErrorPayload::new("service unavailable")),
+            Some("unreliable_service_call".to_string()),
+        ));
+    }
+    
+    // 模拟服务响应
+    let response = format!("Response from {}", service);
+    ctx.info("Service call successful");
+    Ok(response)
+}
+
+// 使用断路器的安全服务调用
+pub async fn safe_service_call(service: &str) -> Result<String, StructError<UvsReason>> {
+    let config = CircuitBreakerConfig {
+        failure_threshold: 3,
+        success_threshold: 2,
+        timeout: Duration::from_secs(10),
+        recovery_timeout: Duration::from_secs(30),
+        half_open_max_calls: 5,
+    };
+    
+    let circuit_breaker = Arc::new(CircuitBreaker::new(config));
+    
+    execute_with_circuit_breaker(
+        || {
+            let service = service.to_string();
+            Box::pin(async move {
+                unreliable_service_call(&service).await
+            })
+        },
+        circuit_breaker,
+    ).await
+}
+```
                     }
                     buffer.clear();
                 }
@@ -1372,6 +2018,7 @@ pub struct RecoveryEvent {
     pub step_id: Option<String>,
     pub timestamp: Instant,
     pub data: Option<serde_json::Value>,
+    pub context: OperationContext,
 }
 
 #[derive(Debug, Clone)]
@@ -1414,16 +2061,22 @@ impl RecoveryOrchestrator {
         self.step_executors.insert(type_str, Arc::new(executor));
     }
     
-    pub async fn register_plan(&self, plan: RecoveryPlan) -> Result<(), RecoveryError> {
+    pub async fn register_plan(&self, plan: RecoveryPlan) -> Result<(), StructError<UvsReason>> {
+        let context = OperationContext::new();
         let mut plans = self.plans.write().await;
         plans.insert(plan.id.clone(), plan);
         Ok(())
     }
     
-    pub async fn execute_plan(&self, plan_id: String, parameters: HashMap<String, serde_json::Value>) -> Result<String, RecoveryError> {
+    pub async fn execute_plan(&self, plan_id: String, parameters: HashMap<String, serde_json::Value>) -> Result<String, StructError<UvsReason>> {
+        let context = OperationContext::new();
         let plans = self.plans.read().await;
         let plan = plans.get(&plan_id)
-            .ok_or(RecoveryError::PlanNotFound(plan_id.clone()))?;
+            .ok_or_else(|| StructError::new(
+                UvsReason::NotFound,
+                format!("恢复计划 {} 不存在", plan_id),
+                context.clone(),
+            ))?;
         
         let execution_id = uuid::Uuid::new_v4().to_string();
         
@@ -1450,10 +2103,11 @@ impl RecoveryOrchestrator {
             step_id: None,
             timestamp: Instant::now(),
             data: None,
+            context: context.clone(),
         }).await;
         
         // 执行恢复计划
-        let result = self.execute_recovery_plan(&plan, &execution_id, parameters).await;
+        let result = self.execute_recovery_plan(&plan, &execution_id, parameters, &context).await;
         
         // 更新执行状态
         let mut history = self.execution_history.write().await;
@@ -1477,6 +2131,7 @@ impl RecoveryOrchestrator {
             step_id: None,
             timestamp: Instant::now(),
             data: None,
+            context: context.clone(),
         }).await;
         
         result.map(|_| execution_id)
@@ -1487,12 +2142,14 @@ impl RecoveryOrchestrator {
         plan: &RecoveryPlan,
         execution_id: &str,
         parameters: HashMap<String, serde_json::Value>,
-    ) -> Result<(), RecoveryError> {
+        context: &OperationContext,
+    ) -> Result<(), StructError<UvsReason>> {
         let context = RecoveryContext {
             execution_id: execution_id.to_string(),
             plan_id: plan.id.clone(),
             parameters,
             step_results: HashMap::new(),
+            operation_context: context.clone(),
         };
         
         // 构建执行顺序
@@ -1502,7 +2159,11 @@ impl RecoveryOrchestrator {
         for step_id in execution_order {
             let step = plan.steps.iter()
                 .find(|s| s.id == step_id)
-                .ok_or(RecoveryError::StepNotFound(step_id.clone()))?;
+                .ok_or_else(|| StructError::new(
+                    UvsReason::NotFound,
+                    format!("恢复步骤 {} 不存在", step_id),
+                    context.operation_context.clone(),
+                ))?;
             
             if let Err(e) = self.execute_recovery_step(step, &context).await {
                 // 步骤失败，执行回滚
@@ -1514,9 +2175,13 @@ impl RecoveryOrchestrator {
         Ok(())
     }
     
-    async fn execute_recovery_step(&self, step: &RecoveryStep, context: &RecoveryContext) -> Result<(), RecoveryError> {
+    async fn execute_recovery_step(&self, step: &RecoveryStep, context: &RecoveryContext) -> Result<(), StructError<UvsReason>> {
         let executor = self.step_executors.get(&step.step_type.to_string())
-            .ok_or(RecoveryError::NoExecutor(step.step_type.clone()))?;
+            .ok_or_else(|| StructError::new(
+                UvsReason::NotFound,
+                format!("未找到步骤执行器: {:?}", step.step_type),
+                context.operation_context.clone(),
+            ))?;
         
         self.event_bus.publish(RecoveryEvent {
             event_type: RecoveryEventType::StepStarted,
@@ -1525,6 +2190,7 @@ impl RecoveryOrchestrator {
             step_id: Some(step.id.clone()),
             timestamp: Instant::now(),
             data: None,
+            context: context.operation_context.clone(),
         }).await;
         
         let mut attempts = 0;
@@ -1542,6 +2208,7 @@ impl RecoveryOrchestrator {
                         step_id: Some(step.id.clone()),
                         timestamp: Instant::now(),
                         data: Some(output),
+                        context: context.operation_context.clone(),
                     }).await;
                     return Ok(());
                 },
@@ -1562,12 +2229,13 @@ impl RecoveryOrchestrator {
             step_id: Some(step.id.clone()),
             timestamp: Instant::now(),
             data: None,
+            context: context.operation_context.clone(),
         }).await;
         
-        Err(last_error.unwrap().into())
+        Err(last_error.unwrap())
     }
     
-    async fn execute_rollback(&self, plan: &RecoveryPlan, context: &RecoveryContext, failed_step_id: String) -> Result<(), RecoveryError> {
+    async fn execute_rollback(&self, plan: &RecoveryPlan, context: &RecoveryContext, failed_step_id: String) -> Result<(), StructError<UvsReason>> {
         self.event_bus.publish(RecoveryEvent {
             event_type: RecoveryEventType::RollbackStarted,
             execution_id: context.execution_id.clone(),
@@ -1575,6 +2243,7 @@ impl RecoveryOrchestrator {
             step_id: None,
             timestamp: Instant::now(),
             data: None,
+            context: context.operation_context.clone(),
         }).await;
         
         // 获取已执行的步骤，按相反顺序执行回滚
@@ -1590,7 +2259,11 @@ impl RecoveryOrchestrator {
             if let Some(rollback_step_id) = &step.rollback_step_id {
                 if let Some(rollback_step) = plan.rollback_steps.iter().find(|s| s.id == *rollback_step_id) {
                     let executor = self.step_executors.get(&rollback_step.step_type.to_string())
-                        .ok_or(RecoveryError::NoExecutor(rollback_step.step_type.clone()))?;
+                        .ok_or_else(|| StructError::new(
+                            UvsReason::NotFound,
+                            format!("未找到回滚步骤执行器: {:?}", rollback_step.step_type),
+                            context.operation_context.clone(),
+                        ))?;
                     
                     if let Err(e) = executor.rollback(rollback_step, context).await {
                         error!("回滚步骤 {} 失败: {}", rollback_step.id, e);
@@ -1607,12 +2280,14 @@ impl RecoveryOrchestrator {
             step_id: None,
             timestamp: Instant::now(),
             data: None,
+            context: context.operation_context.clone(),
         }).await;
         
         Ok(())
     }
     
-    fn build_execution_order(&self, plan: &RecoveryPlan) -> Result<Vec<String>, RecoveryError> {
+    fn build_execution_order(&self, plan: &RecoveryPlan) -> Result<Vec<String>, StructError<UvsReason>> {
+        let context = OperationContext::new();
         // 拓扑排序，处理步骤依赖关系
         let mut order = Vec::new();
         let mut visited = std::collections::HashSet::new();
@@ -1620,7 +2295,7 @@ impl RecoveryOrchestrator {
         
         for step in &plan.steps {
             if !visited.contains(&step.id) {
-                self.visit_step(&step.id, plan, &mut visited, &mut temp_visited, &mut order)?;
+                self.visit_step(&step.id, plan, &mut visited, &mut temp_visited, &mut order, &context)?;
             }
         }
         
@@ -1634,9 +2309,14 @@ impl RecoveryOrchestrator {
         visited: &mut std::collections::HashSet<String>,
         temp_visited: &mut std::collections::HashSet<String>,
         order: &mut Vec<String>,
-    ) -> Result<(), RecoveryError> {
+        context: &OperationContext,
+    ) -> Result<(), StructError<UvsReason>> {
         if temp_visited.contains(step_id) {
-            return Err(RecoveryError::CircularDependency(step_id.to_string()));
+            return Err(StructError::new(
+                UvsReason::DependencyError,
+                format!("发现循环依赖: {}", step_id),
+                context.clone(),
+            ));
         }
         
         if visited.contains(step_id) {
@@ -1647,7 +2327,7 @@ impl RecoveryOrchestrator {
         
         if let Some(dependencies) = plan.dependencies.get(step_id) {
             for dep_id in dependencies {
-                self.visit_step(dep_id, plan, visited, temp_visited, order)?;
+                self.visit_step(dep_id, plan, visited, temp_visited, order, context)?;
             }
         }
         
@@ -1665,7 +2345,8 @@ impl RecoveryOrchestrator {
             .cloned()
     }
     
-    pub async fn cancel_execution(&self, execution_id: &str) -> Result<(), RecoveryError> {
+    pub async fn cancel_execution(&self, execution_id: &str) -> Result<(), StructError<UvsReason>> {
+        let context = OperationContext::new();
         let mut history = self.execution_history.write().await;
         if let Some(execution) = history.iter_mut().find(|e| e.execution_id == execution_id) {
             if execution.status == ExecutionStatus::Running {
@@ -1679,13 +2360,18 @@ impl RecoveryOrchestrator {
                     step_id: None,
                     timestamp: Instant::now(),
                     data: None,
+                    context: context.clone(),
                 }).await;
                 
                 return Ok(());
             }
         }
         
-        Err(RecoveryError::ExecutionNotFound(execution_id.to_string()))
+        Err(StructError::new(
+            UvsReason::NotFound,
+            format!("执行记录未找到: {}", execution_id),
+            context,
+        ))
     }
 }
 
@@ -1713,9 +2399,20 @@ pub enum RecoveryError {
     Timeout,
 }
 
-impl From<StepExecutionError> for RecoveryError {
+impl From<StepExecutionError> for StructError<UvsReason> {
     fn from(error: StepExecutionError) -> Self {
-        RecoveryError::StepExecutionError(error.to_string())
+        let context = OperationContext::new();
+        let reason = match error {
+            StepExecutionError::DatabaseError(msg) => UvsReason::DatabaseError,
+            StepExecutionError::ServiceError(msg) => UvsReason::ServiceError,
+            StepExecutionError::CacheError(msg) => UvsReason::CacheError,
+            StepExecutionError::ConfigurationError(msg) => UvsReason::ConfigurationError,
+            StepExecutionError::ValidationError(msg) => UvsReason::ValidationError,
+            StepExecutionError::Timeout => UvsReason::Timeout,
+            StepExecutionError::Unknown(msg) => UvsReason::Unknown,
+        };
+        
+        StructError::new(reason, error.to_string(), context)
     }
 }
 
@@ -1857,8 +2554,8 @@ pub enum TestStatus {
 
 #[async_trait::async_trait]
 pub trait RecoveryMetricsCollector: Send + Sync {
-    async fn collect_metrics(&self, scenario_id: &str) -> Result<HashMap<String, f64>, Box<dyn std::error::Error + Send + Sync>>;
-    async fn reset_metrics(&self, scenario_id: &str) -> Result<(), Box<dyn std::error::Error + Send + Sync>>;
+    async fn collect_metrics(&self, scenario_id: &str) -> Result<HashMap<String, f64>, StructError<UvsReason>>;
+    async fn reset_metrics(&self, scenario_id: &str) -> Result<(), StructError<UvsReason>>;
 }
 
 impl RecoveryTestFramework {
@@ -1903,7 +2600,8 @@ impl RecoveryTestFramework {
         results
     }
     
-    pub async fn run_test_scenario(&self, scenario: &RecoveryTestScenario) -> Result<RecoveryTestResult, Box<dyn std::error::Error + Send + Sync>> {
+    pub async fn run_test_scenario(&self, scenario: &RecoveryTestScenario) -> Result<RecoveryTestResult, StructError<UvsReason>> {
+        let context = OperationContext::new();
         let execution_id = uuid::Uuid::new_v4().to_string();
         let started_at = Instant::now();
         
@@ -1918,7 +2616,7 @@ impl RecoveryTestFramework {
         
         // 执行测试
         let result = tokio::time::timeout(scenario.timeout, async {
-            self.execute_test_logic(scenario).await
+            self.execute_test_logic(scenario, &context).await
         }).await;
         
         let completed_at = Instant::now();
@@ -1974,7 +2672,7 @@ impl RecoveryTestFramework {
         Ok(test_result)
     }
     
-    async fn execute_test_logic(&self, scenario: &RecoveryTestScenario) -> Result<RecoveryTestResult, Box<dyn std::error::Error + Send + Sync>> {
+    async fn execute_test_logic(&self, scenario: &RecoveryTestScenario, context: &OperationContext) -> Result<RecoveryTestResult, StructError<UvsReason>> {
         // 这里应该实现具体的测试逻辑
         // 根据场景类型执行不同的测试
         
@@ -2084,26 +2782,27 @@ impl ErrorInjector {
         Self { config }
     }
     
-    pub async fn inject(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    pub async fn inject(&self) -> Result<(), StructError<UvsReason>> {
+        let context = OperationContext::new();
         match self.config.injection_timing {
-            InjectionTiming::Immediate => self.inject_immediately().await,
+            InjectionTiming::Immediate => self.inject_immediately(&context).await,
             InjectionTiming::Delayed(delay) => {
                 tokio::time::sleep(delay).await;
-                self.inject_immediately().await
+                self.inject_immediately(&context).await
             },
             InjectionTiming::Random => {
                 let delay = Duration::from_millis(rand::random::<u64>() % 5000);
                 tokio::time::sleep(delay).await;
-                self.inject_immediately().await
+                self.inject_immediately(&context).await
             },
             InjectionTiming::ConditionBased(_) => {
                 // 条件注入逻辑
-                self.inject_immediately().await
+                self.inject_immediately(&context).await
             }
         }
     }
     
-    async fn inject_immediately(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    async fn inject_immediately(&self, context: &OperationContext) -> Result<(), StructError<UvsReason>> {
         match self.config.injection_type {
             ErrorInjectionType::NetworkFailure => {
                 // 模拟网络故障
@@ -2260,21 +2959,38 @@ impl RecoveryStrategyConfig {
         }
     }
     
-    pub fn validate(&self) -> Result<(), String> {
+    pub fn validate(&self) -> Result<(), StructError<UvsReason>> {
+        let context = OperationContext::new();
         if self.retry_config.max_attempts == 0 {
-            return Err("最大重试次数必须大于0".to_string());
+            return Err(StructError::new(
+                UvsReason::ValidationError,
+                "最大重试次数必须大于0".to_string(),
+                context.clone(),
+            ));
         }
         
         if self.retry_config.base_delay > self.retry_config.max_delay {
-            return Err("基础延迟不能大于最大延迟".to_string());
+            return Err(StructError::new(
+                UvsReason::ValidationError,
+                "基础延迟不能大于最大延迟".to_string(),
+                context.clone(),
+            ));
         }
         
         if self.circuit_breaker_config.failure_threshold == 0 {
-            return Err("断路器失败阈值必须大于0".to_string());
+            return Err(StructError::new(
+                UvsReason::ValidationError,
+                "断路器失败阈值必须大于0".to_string(),
+                context.clone(),
+            ));
         }
         
         if self.degradation_config.degradation_threshold <= self.degradation_config.recovery_threshold {
-            return Err("降级阈值必须大于恢复阈值".to_string());
+            return Err(StructError::new(
+                UvsReason::ValidationError,
+                "降级阈值必须大于恢复阈值".to_string(),
+                context,
+            ));
         }
         
         Ok(())

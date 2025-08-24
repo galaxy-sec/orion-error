@@ -338,7 +338,7 @@ mod tests {
     fn test_errcontext_display_single() {
         let ctx = CallContext::from(("key", "test"));
         let display = format!("{}", ctx);
-        assert!(display.contains("error context:"));
+        assert!(display.contains("call context:"));
         assert!(display.contains("key : test"));
     }
 
@@ -348,7 +348,7 @@ mod tests {
         ctx.items.push(("key1".to_string(), "value1".to_string()));
         ctx.items.push(("key2".to_string(), "value2".to_string()));
         let display = format!("{}", ctx);
-        assert!(display.contains("error context:"));
+        assert!(display.contains("call context:"));
         assert!(display.contains("key1 : value1"));
         assert!(display.contains("key2 : value2"));
     }

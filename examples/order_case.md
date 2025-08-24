@@ -5,7 +5,7 @@
 2. **错误处理模式**：
    - 使用`WithContext`添加上下文：
    ```rust
-   .with(WithContext::want("解析订单"))
+   .with(OperationContext::want("解析订单"))
    ```
    - 使用`owe`转换底层错误：
    ```rust
