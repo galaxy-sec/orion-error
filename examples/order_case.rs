@@ -4,8 +4,8 @@
 
 use derive_more::From;
 use orion_error::{
-    print_error, ErrorCode, ErrorConv, ErrorOwe, ErrorWith, StructError, ToStructError, UvsReason,
-    OperationContext,
+    print_error, ErrorCode, ErrorConv, ErrorOwe, ErrorWith, OperationContext, StructError,
+    ToStructError, UvsReason,
 };
 use serde::Serialize;
 use std::{

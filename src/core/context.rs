@@ -7,13 +7,12 @@ use std::{
 };
 use thiserror::Error;
 
-
 #[derive(Debug, Clone, Getters, Default, Serialize, Deserialize, PartialEq)]
 pub struct OperationContext {
     target: Option<String>,
     context: CallContext,
-    is_suc : bool,
-    exit_log : bool,
+    is_suc: bool,
+    exit_log: bool,
 }
 #[allow(dead_code)]
 pub type WithContext = OperationContext;
@@ -69,7 +68,7 @@ impl OperationContext {
             exit_log: false,
         }
     }
-    pub fn with_exit_log(mut self )-> Self {
+    pub fn with_exit_log(mut self) -> Self {
         self.exit_log = true;
         self
     }
@@ -89,13 +88,16 @@ impl OperationContext {
         self.is_suc = true;
     }
 
-
     /// 格式化上下文信息，用于日志输出
     fn format_context(&self) -> String {
         if self.context.items.is_empty() {
             self.target.clone().unwrap_or_default()
         } else {
-            format!("{}: {}", self.target.clone().unwrap_or_default(), self.context)
+            format!(
+                "{}: {}",
+                self.target.clone().unwrap_or_default(),
+                self.context
+            )
         }
     }
 
@@ -225,6 +227,18 @@ impl<K: AsRef<str>, V: AsRef<str>> From<(K, V)> for CallContext {
 
 pub trait ContextAdd<T> {
     fn add_context(&mut self, val: T);
+}
+
+impl<K: Into<String>, V: Into<String>> ContextAdd<(K, V)> for OperationContext {
+    fn add_context(&mut self, val: (K, V)) {
+        self.with(val.0, val.1);
+    }
+}
+
+impl<K: Into<String>, V: Into<String>> ContextAdd<(K, V)> for CallContext {
+    fn add_context(&mut self, val: (K, V)) {
+        self.items.push((val.0.into(), val.1.into()));
+    }
 }
 
 impl Display for CallContext {
@@ -547,5 +561,271 @@ mod tests {
             ctx.context().items[2],
             ("bool_key".to_string(), "true".to_string())
         );
+    }
+
+    #[test]
+    fn test_mark_suc() {
+        let mut ctx = OperationContext::new();
+        assert!(!ctx.is_suc);
+
+        ctx.mark_suc();
+        assert!(ctx.is_suc);
+    }
+
+    #[test]
+    fn test_with_exit_log() {
+        let ctx = OperationContext::new().with_exit_log();
+        assert!(ctx.exit_log);
+
+        let ctx2 = OperationContext::want("test").with_exit_log();
+        assert!(ctx2.exit_log);
+        assert_eq!(*ctx2.target(), Some("test".to_string()));
+    }
+
+    #[test]
+    fn test_format_context_with_target() {
+        let mut ctx = OperationContext::want("test_target");
+        ctx.with("key1", "value1");
+
+        let formatted = ctx.format_context();
+        assert_eq!(formatted, "test_target: \ncall context:\n\tkey1 : value1\n");
+    }
+
+    #[test]
+    fn test_format_context_without_target() {
+        let mut ctx = OperationContext::new();
+        ctx.with("key1", "value1");
+
+        let formatted = ctx.format_context();
+        assert_eq!(formatted, ": \ncall context:\n\tkey1 : value1\n");
+    }
+
+    #[test]
+    fn test_format_context_empty() {
+        let ctx = OperationContext::new();
+        let formatted = ctx.format_context();
+        assert_eq!(formatted, "");
+    }
+
+    #[test]
+    fn test_format_context_with_target_only() {
+        let ctx = OperationContext::want("test_target");
+        let formatted = ctx.format_context();
+        assert_eq!(formatted, "test_target");
+    }
+
+    #[test]
+    fn test_logging_methods() {
+        let ctx = OperationContext::want("test_target");
+
+        // 这些方法主要测试它们不会panic，实际日志输出需要日志框架支持
+        ctx.info("info message");
+        ctx.debug("debug message");
+        ctx.warn("warn message");
+        ctx.error("error message");
+        ctx.trace("trace message");
+    }
+
+    #[test]
+    fn test_logging_methods_with_empty_context() {
+        let ctx = OperationContext::new();
+
+        // 测试空上下文时的日志方法
+        ctx.info("info message");
+        ctx.debug("debug message");
+        ctx.warn("warn message");
+        ctx.error("error message");
+        ctx.trace("trace message");
+    }
+
+    #[test]
+    fn test_context_add_trait() {
+        let mut ctx = OperationContext::new();
+
+        // 测试ContextAdd trait的实现
+        ctx.add_context(("key1", "value1"));
+        ctx.add_context(("key2", "value2"));
+
+        assert_eq!(ctx.context().items.len(), 2);
+        assert_eq!(
+            ctx.context().items[0],
+            ("key1".to_string(), "value1".to_string())
+        );
+        assert_eq!(
+            ctx.context().items[1],
+            ("key2".to_string(), "value2".to_string())
+        );
+    }
+
+    #[test]
+    fn test_drop_trait_with_success() {
+        {
+            let mut ctx = OperationContext::want("test_drop").with_exit_log();
+            ctx.with("operation", "test");
+            ctx.mark_suc(); // 标记为成功
+                            // ctx 在这里离开作用域，会触发Drop trait
+        }
+        // 注意：Drop trait的日志输出需要日志框架配置才能看到
+        // 这里主要测试Drop trait不会panic
+    }
+
+    #[test]
+    fn test_drop_trait_with_failure() {
+        {
+            let mut ctx = OperationContext::want("test_drop_fail").with_exit_log();
+            ctx.with("operation", "test_fail");
+            // 不调用mark_suc，保持is_suc = false
+            // ctx 在这里离开作用域，会触发Drop trait
+        }
+        // 注意：Drop trait的日志输出需要日志框架配置才能看到
+        // 这里主要测试Drop trait不会panic
+    }
+
+    #[test]
+    fn test_drop_trait_without_exit_log() {
+        {
+            let mut ctx = OperationContext::want("test_no_log");
+            ctx.with("operation", "no_log");
+            ctx.mark_suc();
+            // exit_log = false，不会触发日志输出
+            // ctx 在这里离开作用域，Drop trait应该什么都不做
+        }
+        // 测试通过即可
+    }
+
+    #[test]
+    fn test_complex_context_scenario() {
+        // 模拟一个复杂的操作场景
+        let mut ctx = OperationContext::want("user_registration").with_exit_log();
+
+        // 添加各种上下文信息
+        ctx.with("user_id", "12345");
+        ctx.with("email", "test@example.com");
+        ctx.with("role", "user");
+
+        // 记录各种级别的日志
+        ctx.info("开始用户注册流程");
+        ctx.debug("验证用户输入");
+        ctx.warn("检测到潜在的安全风险");
+
+        // 模拟操作成功
+        ctx.mark_suc();
+        ctx.info("用户注册成功");
+
+        // 验证上下文状态
+        assert!(ctx.is_suc);
+        assert!(ctx.exit_log);
+        assert_eq!(*ctx.target(), Some("user_registration".to_string()));
+        assert_eq!(ctx.context().items.len(), 3);
+
+        // 验证format_context输出
+        let formatted = ctx.format_context();
+        assert!(formatted.contains("user_registration"));
+        assert!(formatted.contains("user_id"));
+        assert!(formatted.contains("email"));
+        assert!(formatted.contains("role"));
+    }
+
+    #[test]
+    fn test_context_serialization() {
+        let mut ctx = OperationContext::want("serialization_test");
+        ctx.with("key1", "value1");
+        ctx.with("key2", "value2");
+
+        // 测试序列化
+        let serialized = serde_json::to_string(&ctx).expect("序列化失败");
+        assert!(serialized.contains("serialization_test"));
+        assert!(serialized.contains("key1"));
+        assert!(serialized.contains("value1"));
+
+        // 测试反序列化
+        let deserialized: OperationContext =
+            serde_json::from_str(&serialized).expect("反序列化失败");
+        assert_eq!(ctx, deserialized);
+    }
+
+    #[test]
+    fn test_context_with_special_characters() {
+        let mut ctx = OperationContext::new();
+
+        // 测试特殊字符
+        ctx.with("key_with_spaces", "value with spaces");
+        ctx.with("key_with_unicode", "值包含中文");
+        ctx.with("key_with_symbols", "value@#$%^&*()");
+
+        assert_eq!(ctx.context().items.len(), 3);
+        assert_eq!(
+            ctx.context().items[0],
+            (
+                "key_with_spaces".to_string(),
+                "value with spaces".to_string()
+            )
+        );
+        assert_eq!(
+            ctx.context().items[1],
+            ("key_with_unicode".to_string(), "值包含中文".to_string())
+        );
+        assert_eq!(
+            ctx.context().items[2],
+            ("key_with_symbols".to_string(), "value@#$%^&*()".to_string())
+        );
+
+        // 测试显示
+        let display = format!("{}", ctx);
+        assert!(display.contains("key_with_spaces"));
+        assert!(display.contains("值包含中文"));
+        assert!(display.contains("value@#$%^&*()"));
+    }
+
+    #[test]
+    fn test_context_builder_pattern() {
+        // 测试构建器模式的使用
+        let ctx = OperationContext::want("builder_test").with_exit_log();
+
+        assert_eq!(*ctx.target(), Some("builder_test".to_string()));
+        assert!(ctx.exit_log);
+    }
+
+    #[test]
+    fn test_context_multiple_with_calls() {
+        let mut ctx = OperationContext::new();
+
+        // 多次调用with方法
+        ctx.with("key1", "value1");
+        ctx.with("key2", "value2");
+        ctx.with("key3", "value3");
+        ctx.with("key1", "new_value1"); // 覆盖key1
+
+        // 注意：当前实现允许重复的key，这是预期的行为
+        assert_eq!(ctx.context().items.len(), 4);
+        assert_eq!(
+            ctx.context().items[0],
+            ("key1".to_string(), "value1".to_string())
+        );
+        assert_eq!(
+            ctx.context().items[3],
+            ("key1".to_string(), "new_value1".to_string())
+        );
+    }
+
+    #[test]
+    fn test_context_from_various_types() {
+        // 测试从各种类型创建OperationContext
+        let ctx1 = OperationContext::from("simple_string");
+        assert_eq!(
+            ctx1.context().items[0],
+            ("key".to_string(), "simple_string".to_string())
+        );
+
+        let ctx2 = OperationContext::from(("custom_key", "custom_value"));
+        assert_eq!(
+            ctx2.context().items[0],
+            ("custom_key".to_string(), "custom_value".to_string())
+        );
+
+        let path = PathBuf::from("/test/path/file.txt");
+        let ctx3 = OperationContext::from(&path);
+        assert!(ctx3.context().items[0].0.contains("path"));
+        assert!(ctx3.context().items[0].1.contains("/test/path/file.txt"));
     }
 }
