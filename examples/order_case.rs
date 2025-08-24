@@ -5,7 +5,7 @@
 use derive_more::From;
 use orion_error::{
     print_error, ErrorCode, ErrorConv, ErrorOwe, ErrorWith, StructError, ToStructError, UvsReason,
-    WithContext,
+    OperationContext,
 };
 use serde::Serialize;
 use std::{
@@ -167,7 +167,7 @@ impl OrderService {
         amount: f64,
         order_txt: &str,
     ) -> Result<storage::Order, OrderError> {
-        let mut ctx = WithContext::want("place_order");
+        let mut ctx = OperationContext::want("place_order");
         ctx.with("order", order_txt);
         let order = Self::parse_order(order_txt, amount)
             .want("解析订单")

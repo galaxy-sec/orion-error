@@ -3,7 +3,7 @@ mod testcase;
 mod traits;
 
 pub use core::StructError;
-pub use core::WithContext;
+pub use core::OperationContext;
 pub use core::{
     print_error, ConfErrReason, DomainReason, ErrorCode, StructErrorTrait, UvsBizFrom, UvsConfFrom,
     UvsDataFrom, UvsExternalFrom, UvsLogicFrom, UvsNetFrom, UvsNotFoundFrom, UvsPermissionFrom,
