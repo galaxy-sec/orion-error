@@ -54,16 +54,16 @@ pub trait ContextTake<S1, S2> {
     fn take(&mut self, key: S1, val: S2);
 }
 
-impl<S1 > ContextTake<S1, String> for OperationContext
+impl<S1> ContextTake<S1, String> for OperationContext
 where
     S1: Into<String>,
 {
     fn take(&mut self, key: S1, val: String) {
-        self.context.items.push((key.into(), val.into()));
+        self.context.items.push((key.into(), val));
     }
 }
 
-impl<S1 > ContextTake<S1, &str> for OperationContext
+impl<S1> ContextTake<S1, &str> for OperationContext
 where
     S1: Into<String>,
 {
@@ -937,46 +937,67 @@ mod tests {
     #[test]
     fn test_context_take_with_string_types() {
         let mut ctx = OperationContext::new();
-        
+
         // 测试字符串类型的ContextTake实现
         ctx.take("string_key", "string_value");
         ctx.take("string_key2", String::from("string_value2"));
         ctx.take(String::from("string_key3"), "string_value3");
         ctx.take(String::from("string_key4"), String::from("string_value4"));
-        
+
         assert_eq!(ctx.context().items.len(), 4);
-        assert_eq!(ctx.context().items[0], ("string_key".to_string(), "string_value".to_string()));
-        assert_eq!(ctx.context().items[1], ("string_key2".to_string(), "string_value2".to_string()));
-        assert_eq!(ctx.context().items[2], ("string_key3".to_string(), "string_value3".to_string()));
-        assert_eq!(ctx.context().items[3], ("string_key4".to_string(), "string_value4".to_string()));
+        assert_eq!(
+            ctx.context().items[0],
+            ("string_key".to_string(), "string_value".to_string())
+        );
+        assert_eq!(
+            ctx.context().items[1],
+            ("string_key2".to_string(), "string_value2".to_string())
+        );
+        assert_eq!(
+            ctx.context().items[2],
+            ("string_key3".to_string(), "string_value3".to_string())
+        );
+        assert_eq!(
+            ctx.context().items[3],
+            ("string_key4".to_string(), "string_value4".to_string())
+        );
     }
 
     #[test]
     fn test_context_take_with_numeric_types() {
         let mut ctx = OperationContext::new();
-        
+
         // 测试数字类型的ContextTake实现（需要转换为字符串）
         ctx.take("int_key", 42.to_string());
-        ctx.take("float_key", 3.14.to_string());
+        ctx.take("float_key", 3.24.to_string());
         ctx.take("bool_key", true.to_string());
-        
+
         assert_eq!(ctx.context().items.len(), 3);
-        assert_eq!(ctx.context().items[0], ("int_key".to_string(), "42".to_string()));
-        assert_eq!(ctx.context().items[1], ("float_key".to_string(), "3.14".to_string()));
-        assert_eq!(ctx.context().items[2], ("bool_key".to_string(), "true".to_string()));
+        assert_eq!(
+            ctx.context().items[0],
+            ("int_key".to_string(), "42".to_string())
+        );
+        assert_eq!(
+            ctx.context().items[1],
+            ("float_key".to_string(), "3.24".to_string())
+        );
+        assert_eq!(
+            ctx.context().items[2],
+            ("bool_key".to_string(), "true".to_string())
+        );
     }
 
     #[test]
     fn test_context_take_with_path_context() {
         let mut ctx = OperationContext::new();
-        
+
         // 测试PathContext包装类型的ContextTake实现
         let path1 = PathBuf::from("/test/path1.txt");
         let path2 = Path::new("/test/path2.txt");
-        
+
         ctx.take("file1", &path1);
         ctx.take("file2", path2);
-        
+
         assert_eq!(ctx.context().items.len(), 2);
         assert_eq!(ctx.context().items[0].0, "file1");
         assert!(ctx.context().items[0].1.contains("/test/path1.txt"));
@@ -987,60 +1008,86 @@ mod tests {
     #[test]
     fn test_context_take_mixed_types() {
         let mut ctx = OperationContext::new();
-        
+
         // 测试混合使用字符串和PathContext类型
         ctx.take("name", "test_user");
         ctx.take("age", 25.to_string());
         ctx.take("config_file", &PathBuf::from("/etc/config.toml"));
         ctx.take("status", "active");
-        
+
         assert_eq!(ctx.context().items.len(), 4);
-        assert_eq!(ctx.context().items[0], ("name".to_string(), "test_user".to_string()));
-        assert_eq!(ctx.context().items[1], ("age".to_string(), "25".to_string()));
+        assert_eq!(
+            ctx.context().items[0],
+            ("name".to_string(), "test_user".to_string())
+        );
+        assert_eq!(
+            ctx.context().items[1],
+            ("age".to_string(), "25".to_string())
+        );
         assert_eq!(ctx.context().items[2].0, "config_file");
         assert!(ctx.context().items[2].1.contains("/etc/config.toml"));
-        assert_eq!(ctx.context().items[3], ("status".to_string(), "active".to_string()));
+        assert_eq!(
+            ctx.context().items[3],
+            ("status".to_string(), "active".to_string())
+        );
     }
-
-
 
     #[test]
     fn test_context_take_edge_cases() {
         let mut ctx = OperationContext::new();
-        
+
         // 测试边界情况
         ctx.take("", ""); // 空字符串
         ctx.take("empty_value", ""); // 空值
         ctx.take("", "empty_key"); // 空键
         ctx.take("special_chars", "@#$%^&*()"); // 特殊字符
         ctx.take("unicode", "测试中文字符"); // Unicode字符
-        
+
         assert_eq!(ctx.context().items.len(), 5);
         assert_eq!(ctx.context().items[0], ("".to_string(), "".to_string()));
-        assert_eq!(ctx.context().items[1], ("empty_value".to_string(), "".to_string()));
-        assert_eq!(ctx.context().items[2], ("".to_string(), "empty_key".to_string()));
-        assert_eq!(ctx.context().items[3], ("special_chars".to_string(), "@#$%^&*()".to_string()));
-        assert_eq!(ctx.context().items[4], ("unicode".to_string(), "测试中文字符".to_string()));
+        assert_eq!(
+            ctx.context().items[1],
+            ("empty_value".to_string(), "".to_string())
+        );
+        assert_eq!(
+            ctx.context().items[2],
+            ("".to_string(), "empty_key".to_string())
+        );
+        assert_eq!(
+            ctx.context().items[3],
+            ("special_chars".to_string(), "@#$%^&*()".to_string())
+        );
+        assert_eq!(
+            ctx.context().items[4],
+            ("unicode".to_string(), "测试中文字符".to_string())
+        );
     }
-
-
 
     #[test]
     fn test_context_take_multiple_calls() {
         let mut ctx = OperationContext::new();
-        
+
         // 测试多次调用take方法
         ctx.take("key1", "value1");
         ctx.take("key2", "value2");
         ctx.take("key1", "new_value1"); // 覆盖key1
         ctx.take("key3", &PathBuf::from("/path/file.txt"));
         ctx.take("key2", &PathBuf::from("/path/file2.txt")); // 覆盖key2
-        
+
         // 注意：当前实现允许重复的key，这是预期的行为
         assert_eq!(ctx.context().items.len(), 5);
-        assert_eq!(ctx.context().items[0], ("key1".to_string(), "value1".to_string()));
-        assert_eq!(ctx.context().items[1], ("key2".to_string(), "value2".to_string()));
-        assert_eq!(ctx.context().items[2], ("key1".to_string(), "new_value1".to_string()));
+        assert_eq!(
+            ctx.context().items[0],
+            ("key1".to_string(), "value1".to_string())
+        );
+        assert_eq!(
+            ctx.context().items[1],
+            ("key2".to_string(), "value2".to_string())
+        );
+        assert_eq!(
+            ctx.context().items[2],
+            ("key1".to_string(), "new_value1".to_string())
+        );
         assert_eq!(ctx.context().items[3].0, "key3");
         assert!(ctx.context().items[3].1.contains("/path/file.txt"));
         assert_eq!(ctx.context().items[4].0, "key2");
@@ -1051,19 +1098,21 @@ mod tests {
     fn test_context_take_with_existing_context() {
         // 创建一个已有上下文的OperationContext
         let mut ctx = OperationContext::from(("existing_key", "existing_value"));
-        
+
         // 使用ContextTake添加更多上下文
         ctx.take("new_key1", "new_value1");
         ctx.take("new_key2", &PathBuf::from("/new/path.txt"));
-        
+
         assert_eq!(ctx.context().items.len(), 3);
-        assert_eq!(ctx.context().items[0], ("existing_key".to_string(), "existing_value".to_string()));
-        assert_eq!(ctx.context().items[1], ("new_key1".to_string(), "new_value1".to_string()));
+        assert_eq!(
+            ctx.context().items[0],
+            ("existing_key".to_string(), "existing_value".to_string())
+        );
+        assert_eq!(
+            ctx.context().items[1],
+            ("new_key1".to_string(), "new_value1".to_string())
+        );
         assert_eq!(ctx.context().items[2].0, "new_key2");
         assert!(ctx.context().items[2].1.contains("/new/path.txt"));
     }
-
-
-
-
 }
