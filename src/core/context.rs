@@ -50,45 +50,45 @@ impl Display for OperationContext {
         Ok(())
     }
 }
-pub trait ContextTake<S1, S2> {
-    fn take(&mut self, key: S1, val: S2);
+pub trait ContextRecord<S1, S2> {
+    fn record(&mut self, key: S1, val: S2);
 }
 
-impl<S1> ContextTake<S1, String> for OperationContext
+impl<S1> ContextRecord<S1, String> for OperationContext
 where
     S1: Into<String>,
 {
-    fn take(&mut self, key: S1, val: String) {
+    fn record(&mut self, key: S1, val: String) {
         self.context.items.push((key.into(), val));
     }
 }
 
-impl<S1> ContextTake<S1, &str> for OperationContext
+impl<S1> ContextRecord<S1, &str> for OperationContext
 where
     S1: Into<String>,
 {
-    fn take(&mut self, key: S1, val: &str) {
+    fn record(&mut self, key: S1, val: &str) {
         self.context.items.push((key.into(), val.into()));
     }
 }
 
 // Wrapper type for path values to avoid conflicts
 
-impl<S1> ContextTake<S1, &PathBuf> for OperationContext
+impl<S1> ContextRecord<S1, &PathBuf> for OperationContext
 where
     S1: Into<String>,
 {
-    fn take(&mut self, key: S1, val: &PathBuf) {
+    fn record(&mut self, key: S1, val: &PathBuf) {
         self.context
             .items
             .push((key.into(), format!("{}", val.display())));
     }
 }
-impl<S1> ContextTake<S1, &Path> for OperationContext
+impl<S1> ContextRecord<S1, &Path> for OperationContext
 where
     S1: Into<String>,
 {
-    fn take(&mut self, key: S1, val: &Path) {
+    fn record(&mut self, key: S1, val: &Path) {
         self.context
             .items
             .push((key.into(), format!("{}", val.display())));
@@ -939,10 +939,10 @@ mod tests {
         let mut ctx = OperationContext::new();
 
         // 测试字符串类型的ContextTake实现
-        ctx.take("string_key", "string_value");
-        ctx.take("string_key2", String::from("string_value2"));
-        ctx.take(String::from("string_key3"), "string_value3");
-        ctx.take(String::from("string_key4"), String::from("string_value4"));
+        ctx.record("string_key", "string_value");
+        ctx.record("string_key2", String::from("string_value2"));
+        ctx.record(String::from("string_key3"), "string_value3");
+        ctx.record(String::from("string_key4"), String::from("string_value4"));
 
         assert_eq!(ctx.context().items.len(), 4);
         assert_eq!(
@@ -968,9 +968,9 @@ mod tests {
         let mut ctx = OperationContext::new();
 
         // 测试数字类型的ContextTake实现（需要转换为字符串）
-        ctx.take("int_key", 42.to_string());
-        ctx.take("float_key", 3.24.to_string());
-        ctx.take("bool_key", true.to_string());
+        ctx.record("int_key", 42.to_string());
+        ctx.record("float_key", 3.24.to_string());
+        ctx.record("bool_key", true.to_string());
 
         assert_eq!(ctx.context().items.len(), 3);
         assert_eq!(
@@ -995,8 +995,8 @@ mod tests {
         let path1 = PathBuf::from("/test/path1.txt");
         let path2 = Path::new("/test/path2.txt");
 
-        ctx.take("file1", &path1);
-        ctx.take("file2", path2);
+        ctx.record("file1", &path1);
+        ctx.record("file2", path2);
 
         assert_eq!(ctx.context().items.len(), 2);
         assert_eq!(ctx.context().items[0].0, "file1");
@@ -1010,10 +1010,10 @@ mod tests {
         let mut ctx = OperationContext::new();
 
         // 测试混合使用字符串和PathContext类型
-        ctx.take("name", "test_user");
-        ctx.take("age", 25.to_string());
-        ctx.take("config_file", &PathBuf::from("/etc/config.toml"));
-        ctx.take("status", "active");
+        ctx.record("name", "test_user");
+        ctx.record("age", 25.to_string());
+        ctx.record("config_file", &PathBuf::from("/etc/config.toml"));
+        ctx.record("status", "active");
 
         assert_eq!(ctx.context().items.len(), 4);
         assert_eq!(
@@ -1037,11 +1037,11 @@ mod tests {
         let mut ctx = OperationContext::new();
 
         // 测试边界情况
-        ctx.take("", ""); // 空字符串
-        ctx.take("empty_value", ""); // 空值
-        ctx.take("", "empty_key"); // 空键
-        ctx.take("special_chars", "@#$%^&*()"); // 特殊字符
-        ctx.take("unicode", "测试中文字符"); // Unicode字符
+        ctx.record("", ""); // 空字符串
+        ctx.record("empty_value", ""); // 空值
+        ctx.record("", "empty_key"); // 空键
+        ctx.record("special_chars", "@#$%^&*()"); // 特殊字符
+        ctx.record("unicode", "测试中文字符"); // Unicode字符
 
         assert_eq!(ctx.context().items.len(), 5);
         assert_eq!(ctx.context().items[0], ("".to_string(), "".to_string()));
@@ -1068,11 +1068,11 @@ mod tests {
         let mut ctx = OperationContext::new();
 
         // 测试多次调用take方法
-        ctx.take("key1", "value1");
-        ctx.take("key2", "value2");
-        ctx.take("key1", "new_value1"); // 覆盖key1
-        ctx.take("key3", &PathBuf::from("/path/file.txt"));
-        ctx.take("key2", &PathBuf::from("/path/file2.txt")); // 覆盖key2
+        ctx.record("key1", "value1");
+        ctx.record("key2", "value2");
+        ctx.record("key1", "new_value1"); // 覆盖key1
+        ctx.record("key3", &PathBuf::from("/path/file.txt"));
+        ctx.record("key2", &PathBuf::from("/path/file2.txt")); // 覆盖key2
 
         // 注意：当前实现允许重复的key，这是预期的行为
         assert_eq!(ctx.context().items.len(), 5);
@@ -1100,8 +1100,8 @@ mod tests {
         let mut ctx = OperationContext::from(("existing_key", "existing_value"));
 
         // 使用ContextTake添加更多上下文
-        ctx.take("new_key1", "new_value1");
-        ctx.take("new_key2", &PathBuf::from("/new/path.txt"));
+        ctx.record("new_key1", "new_value1");
+        ctx.record("new_key2", &PathBuf::from("/new/path.txt"));
 
         assert_eq!(ctx.context().items.len(), 3);
         assert_eq!(

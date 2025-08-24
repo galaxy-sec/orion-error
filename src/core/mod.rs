@@ -7,7 +7,7 @@ mod universal;
 use std::fmt::Display;
 
 pub use context::ContextAdd;
-pub use context::{ContextTake, OperationContext, WithContext};
+pub use context::{ContextRecord, OperationContext, WithContext};
 pub use domain::DomainReason;
 pub use error::{convert_error, StructError, StructErrorTrait};
 pub use reason::ErrorCode;

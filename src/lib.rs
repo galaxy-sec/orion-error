@@ -8,7 +8,7 @@ pub use core::{
     UvsDataFrom, UvsExternalFrom, UvsLogicFrom, UvsNetFrom, UvsNotFoundFrom, UvsPermissionFrom,
     UvsReason, UvsResFrom, UvsSysFrom, UvsTimeoutFrom, UvsValidationFrom,
 };
-pub use core::{ContextTake, OperationContext, WithContext};
+pub use core::{ContextRecord, OperationContext, WithContext};
 pub use traits::ErrorOwe;
 pub use traits::{ConvStructError, ErrorConv, ErrorWith, ToStructError};
 
