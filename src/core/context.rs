@@ -437,7 +437,7 @@ mod tests {
     #[test]
     fn test_errcontext_display_single() {
         let ctx = CallContext::from(("key", "test"));
-        let display = format!("{}", ctx);
+        let display = format!("{ctx}");
         assert!(display.contains("call context:"));
         assert!(display.contains("key : test"));
     }
@@ -447,7 +447,7 @@ mod tests {
         let mut ctx = CallContext::default();
         ctx.items.push(("key1".to_string(), "value1".to_string()));
         ctx.items.push(("key2".to_string(), "value2".to_string()));
-        let display = format!("{}", ctx);
+        let display = format!("{ctx}");
         assert!(display.contains("call context:"));
         assert!(display.contains("key1 : value1"));
         assert!(display.contains("key2 : value2"));
@@ -456,7 +456,7 @@ mod tests {
     #[test]
     fn test_errcontext_display_empty() {
         let ctx = CallContext::default();
-        let display = format!("{}", ctx);
+        let display = format!("{ctx}");
         assert_eq!(display, "");
     }
 
@@ -547,7 +547,7 @@ mod tests {
     fn test_withcontext_display_with_target() {
         let mut ctx = OperationContext::want("test_target");
         ctx.with("key1", "value1");
-        let display = format!("{}", ctx);
+        let display = format!("{ctx}");
         assert!(display.contains("target: test_target"));
         assert!(display.contains("1. key1: value1"));
     }
@@ -556,7 +556,7 @@ mod tests {
     fn test_withcontext_display_without_target() {
         let mut ctx = OperationContext::new();
         ctx.with("key1", "value1");
-        let display = format!("{}", ctx);
+        let display = format!("{ctx}");
         assert!(!display.contains("target:"));
         assert!(display.contains("1. key1: value1"));
     }
@@ -875,7 +875,7 @@ mod tests {
         );
 
         // 测试显示
-        let display = format!("{}", ctx);
+        let display = format!("{ctx}");
         assert!(display.contains("key_with_spaces"));
         assert!(display.contains("值包含中文"));
         assert!(display.contains("value@#$%^&*()"));

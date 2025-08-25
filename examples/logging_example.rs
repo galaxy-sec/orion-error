@@ -38,12 +38,12 @@ fn process_order(order_id: &str, amount: f64, customer_id: &str) {
         // 订单处理成功，记录成功信息
         ctx.info("订单处理成功");
 
-        println!("订单 {} 处理成功", order_id);
+        println!("订单 {order_id} 处理成功");
     } else {
         // 订单处理失败，记录错误信息
         ctx.error("订单验证失败");
 
-        println!("订单 {} 验证失败", order_id);
+        println!("订单 {order_id} 验证失败");
     }
     ctx.mark_suc();
 }

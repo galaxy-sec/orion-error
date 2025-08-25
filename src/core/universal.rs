@@ -241,6 +241,15 @@ where
     }
 }
 
+impl<T> UvsConfFrom<&str> for T
+where
+    T: From<UvsReason>,
+{
+    fn from_conf(reason: &str) -> Self {
+        T::from(UvsReason::core_conf(reason))
+    }
+}
+
 impl<T> UvsConfFrom<ConfErrReason> for T
 where
     T: From<UvsReason>,
@@ -259,11 +268,29 @@ where
     }
 }
 
+impl<T> UvsDataFrom<&str> for T
+where
+    T: From<UvsReason>,
+{
+    fn from_data(info: &str, pos: Option<usize>) -> Self {
+        T::from(UvsReason::data_error(info, pos))
+    }
+}
+
 impl<T> UvsSysFrom<String> for T
 where
     T: From<UvsReason>,
 {
     fn from_sys(info: String) -> Self {
+        T::from(UvsReason::system_error(info))
+    }
+}
+
+impl<T> UvsSysFrom<&str> for T
+where
+    T: From<UvsReason>,
+{
+    fn from_sys(info: &str) -> Self {
         T::from(UvsReason::system_error(info))
     }
 }
@@ -277,11 +304,29 @@ where
     }
 }
 
+impl<T> UvsBizFrom<&str> for T
+where
+    T: From<UvsReason>,
+{
+    fn from_biz(info: &str) -> Self {
+        T::from(UvsReason::business_error(info))
+    }
+}
+
 impl<T> UvsResFrom<String> for T
 where
     T: From<UvsReason>,
 {
     fn from_res(info: String) -> Self {
+        T::from(UvsReason::resource_error(info))
+    }
+}
+
+impl<T> UvsResFrom<&str> for T
+where
+    T: From<UvsReason>,
+{
+    fn from_res(info: &str) -> Self {
         T::from(UvsReason::resource_error(info))
     }
 }
@@ -295,11 +340,29 @@ where
     }
 }
 
+impl<T> UvsNetFrom<&str> for T
+where
+    T: From<UvsReason>,
+{
+    fn from_net(info: &str) -> Self {
+        T::from(UvsReason::network_error(info)) // Fixed: was incorrectly mapping to BizError
+    }
+}
+
 impl<T> UvsTimeoutFrom<String> for T
 where
     T: From<UvsReason>,
 {
     fn from_timeout(info: String) -> Self {
+        T::from(UvsReason::timeout_error(info))
+    }
+}
+
+impl<T> UvsTimeoutFrom<&str> for T
+where
+    T: From<UvsReason>,
+{
+    fn from_timeout(info: &str) -> Self {
         T::from(UvsReason::timeout_error(info))
     }
 }
@@ -314,11 +377,29 @@ where
     }
 }
 
+impl<T> UvsValidationFrom<&str> for T
+where
+    T: From<UvsReason>,
+{
+    fn from_validation(info: &str) -> Self {
+        T::from(UvsReason::validation_error(info))
+    }
+}
+
 impl<T> UvsNotFoundFrom<String> for T
 where
     T: From<UvsReason>,
 {
     fn from_not_found(info: String) -> Self {
+        T::from(UvsReason::not_found_error(info))
+    }
+}
+
+impl<T> UvsNotFoundFrom<&str> for T
+where
+    T: From<UvsReason>,
+{
+    fn from_not_found(info: &str) -> Self {
         T::from(UvsReason::not_found_error(info))
     }
 }
@@ -332,6 +413,15 @@ where
     }
 }
 
+impl<T> UvsPermissionFrom<&str> for T
+where
+    T: From<UvsReason>,
+{
+    fn from_permission(info: &str) -> Self {
+        T::from(UvsReason::permission_error(info))
+    }
+}
+
 impl<T> UvsExternalFrom<String> for T
 where
     T: From<UvsReason>,
@@ -341,11 +431,29 @@ where
     }
 }
 
+impl<T> UvsExternalFrom<&str> for T
+where
+    T: From<UvsReason>,
+{
+    fn from_external(info: &str) -> Self {
+        T::from(UvsReason::external_error(info))
+    }
+}
+
 impl<T> UvsLogicFrom<String> for T
 where
     T: From<UvsReason>,
 {
     fn from_logic(info: String) -> Self {
+        T::from(UvsReason::logic_error(info))
+    }
+}
+
+impl<T> UvsLogicFrom<&str> for T
+where
+    T: From<UvsReason>,
+{
+    fn from_logic(info: &str) -> Self {
         T::from(UvsReason::logic_error(info))
     }
 }
