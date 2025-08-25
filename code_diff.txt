@@ -1,0 +1,1050 @@
+diff --git a/Cargo.lock b/Cargo.lock
+index 33aab2a..0fda033 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -67,7 +67,7 @@ checksum = "78ca9ab1a0babb1e7d5695e3530886289c18cf2f87ec19a575a0abdce112e3a3"
+ 
+ [[package]]
+ name = "orion-error"
+-version = "0.3.2"
++version = "0.4.0"
+ dependencies = [
+  "derive-getters",
+  "derive_more",
+diff --git a/Cargo.toml b/Cargo.toml
+index 9a5af43..5b8d2f7 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -1,6 +1,6 @@
+ [package]
+ name = "orion-error"
+-version = "0.3.2"
++version = "0.4.0"
+ edition = "2021"
+ authors = ["wukong <sec-wukong@outlook.com>"]
+ description = "Struct Error for Large Project"
+diff --git a/README.md b/README.md
+index f9f027a..e780340 100644
+--- a/README.md
++++ b/README.md
+@@ -8,16 +8,21 @@ Structured error handling library for building large-scale applications, providi
+ ## Features
+ 
+ - **Structured Errors**: Support multi-layer error aggregation with full error chain
+-- **Error Classification**:
+-  - Business Error (BizError) - Domain-specific recoverable errors
+-  - System Error (SysError) - Infrastructure-level critical errors
++- **Hierarchical Error Classification**: Three-tier classification system with clear boundaries
++  - **Business Layer (100-199)**: User-facing expected errors
++  - **Infrastructure Layer (200-299)**: System-level failures  
++  - **Configuration & External Layer (300-399)**: Environment and third-party issues
++- **Error Types**: 10 specific error types with semantic meaning
++- **Smart Error Analysis**: Built-in retryability and severity assessment
+ - **Context Tracing**: Support multi-level context information
+-- **Error Codes**: Customizable error code system
++- **Error Codes**: Organized code system by error layers
+ - **Error Conversion**: Multiple conversion strategies:
+   ```rust
+-  .owe()      // Convert to business error
+-  .owe_sys()  // Mark as system error
+-  .err_conv() // Automatic type conversion
++  .owe()           // Convert with specific reason
++  .owe_validation() // Convert to validation error
++  .owe_biz()       // Convert to business error
++  .owe_sys()       // Mark as system error
++  .err_conv()      // Automatic type conversion
+   ```
+ 
+ ## Installation
+@@ -25,9 +30,10 @@ Structured error handling library for building large-scale applications, providi
+ Add to Cargo.toml:
+ ```toml
+ [dependencies]
+-orion-error = "0.2"
++orion-error = "0.3"
+ ```
+ 
++## Quick Start
+ ## Core Concepts
+ 
+ ### Error Definition
+@@ -71,9 +77,259 @@ db.query()
+    .err_conv()?;
+ ```
+ 
++## Advanced Features
++
++### Error Composition
++```rust
++use orion_error::{UvsReason, StructError, ErrorWith, WithContext};
++
++// Compose errors with rich context
++fn complex_operation() -> Result<(), StructError<UvsReason>> {
++    let mut ctx = WithContext::want("complex_operation");
++    ctx.with("step", "validation");
++    ctx.with("input_type", "user_request");
++    
++    // Validation error with context
++    validate_input(&request)
++        .want("input validation")
++        .with(&ctx)?;
++    
++    ctx.with("step", "business_logic");
++    
++    // Business error with context
++    check_business_rules(&request)
++        .want("business rules check")
++        .with(&ctx)?;
++    
++    ctx.with("step", "persistence");
++    
++    // System error with context
++    save_to_database(&processed_data)
++        .want("data persistence")
++        .with(&ctx)?;
++    
++    Ok(())
++}
++```
++
++### Error Propagation Strategies
++```rust
++use orion_error::{UvsReason, StructError, ErrorOwe};
++
++// Different conversion strategies
++fn process_with_strategies() -> Result<(), StructError<UvsReason>> {
++    // Strategy 1: Convert to validation error
++    let input = get_input().owe_validation()?;
++    
++    // Strategy 2: Convert to business error  
++    let validated = validate(input).owe_biz()?;
++    
++    // Strategy 3: Convert to system error
++    let result = process(validated).owe_sys()?;
++    
++    // Strategy 4: Convert with custom reason
++    let final_result = finalize(result).owe(UvsReason::business_error("finalization failed"))?;
++    
++    Ok(final_result)
++}
++```
++
++### Error Recovery Patterns
++```rust
++use orion_error::UvsReason;
++
++fn robust_operation() -> Result<(), MyError> {
++    let mut attempts = 0;
++    let max_attempts = 3;
++    
++    loop {
++        attempts += 1;
++        
++        match attempt_operation() {
++            Ok(result) => return Ok(result),
++            Err(error) => {
++                // Check if error is retryable and within attempt limit
++                if error.is_retryable() && attempts < max_attempts {
++                    log::warn!("Attempt {} failed, retrying: {}", attempts, error);
++                    std::thread::sleep(std::time::Duration::from_secs(2));
++                    continue;
++                } else {
++                    return Err(error.into());
++                }
++            }
++        }
++    }
++}
++
++// Fallback pattern
++fn operation_with_fallback() -> Result<String, MyError> {
++    // Try primary method
++    primary_method().map_err(|e| {
++        log::warn!("Primary method failed: {}", e);
++        // Convert to business error with fallback context
++        UvsReason::business_error("primary method unavailable, fallback not implemented")
++    })
++}
++```
++
++### Error Monitoring Integration
++```rust
++use orion_error::UvsReason;
++
++// Integration with monitoring systems
++struct ErrorMonitor;
++
++impl ErrorMonitor {
++    fn track_error(&self, error: &UvsReason) {
++        // Send to monitoring system
++        let event = MonitoringEvent {
++            error_code: error.error_code(),
++            category: error.category_name(),
++            severity: if error.is_high_severity() { "high" } else { "normal" },
++            retryable: error.is_retryable(),
++            message: error.to_string(),
++            timestamp: chrono::Utc::now(),
++        };
++        
++        self.send_to_monitoring(event);
++    }
++    
++    fn should_alert(&self, error: &UvsReason) -> bool {
++        error.is_high_severity() || 
++        error.error_code() >= 200 // Infrastructure layer errors
++    }
++}
++
++// Usage in application
++fn handle_api_error(error: UvsReason) -> HttpResponse {
++    let monitor = ErrorMonitor::new();
++    monitor.track_error(&error);
++    
++    if monitor.should_alert(&error) {
++        alert_team(&error);
++    }
++    
++    // Convert error to HTTP response based on category
++    match error.category_name() {
++        "validation" => HttpResponse::BadRequest().json(error.to_string()),
++        "business" => HttpResponse::Conflict().json(error.to_string()),
++        "not_found" => HttpResponse::NotFound().json(error.to_string()),
++        "permission" => HttpResponse::Unauthorized().json(error.to_string()),
++        "system" | "network" | "timeout" | "resource" => {
++            HttpResponse::ServiceUnavailable().json(error.to_string())
++        }
++        _ => HttpResponse::InternalServerError().json(error.to_string()),
++    }
++}
++```
++
++## Migration Guide
++
++### From Version 0.2 to 0.3
++
++The error classification system has been significantly improved with a new hierarchical structure. Here's how to migrate:
++
++#### **Error Type Changes**
++```rust
++// Old way (v0.2)
++use orion_error::UvsReason;
++
++let error = UvsReason::BizError("business logic failed".into());
++let error = UvsReason::LogicError("logic error".into());
++let error = UvsReason::Timeout("timeout occurred".into());
++
++// New way (v0.3)
++use orion_error::UvsReason;
++
++let error = UvsReason::business_error("business logic failed");
++let error = UvsReason::validation_error("logic error");
++let error = UvsReason::timeout_error("timeout occurred");
++```
++
++#### **Trait Method Changes**
++```rust
++// Old way (v0.2)
++let error = string_value.from_biz();
++let error = string_value.from_logic();
++let error = string_value.from_rule();
++
++// New way (v0.3)  
++let error = UvsReason::from_biz(string_value);
++let error = UvsReason::from_validation(string_value);
++// Note: Rule errors have been removed, use ValidationError instead
++```
++
++#### **Error Code Changes**
++Error codes have been reorganized by layers:
++```rust
++// Old codes
++BizError -> 101
++LogicError -> 100
++Timeout -> 109
++
++// New codes  
++ValidationError -> 100
++BusinessError -> 101  
++NotFoundError -> 102
++PermissionError -> 103
++TimeoutError -> 204
++```
++
++#### **New Features Usage**
++```rust
++// Check retryability
++if error.is_retryable() {
++    // Implement retry logic
++}
++
++// Check severity
++if error.is_high_severity() {
++    // Send high priority alert
++}
++
++// Get category for metrics
++let category = error.category_name();
++```
++
+ ## Full Example
+-See [examples/order_case.rs](examples/order_case.rs)
++See [examples/order_case.rs](examples/order_case.rs) for a comprehensive example showing all the new error classification features in action.
++
++## Error Classification System
++
++The `UvsReason` provides a comprehensive error classification system organized in three distinct layers:
++
++### 🏗️ Error Layer Architecture
++
++#### **Business Layer Errors (100-199)**
++These are user-facing errors that are expected in normal application operation.
++
++| Error Type | Code | Description | When to Use |
++|------------|------|-------------|-------------|
++| `ValidationError` | 100 | Input validation failures | Invalid parameters, format errors, constraint violations |
++| `BusinessError` | 101 | Business logic violations | Rule violations, state conflicts, domain-specific errors |
++| `NotFoundError` | 102 | Resource not found | Database record missing, file not found, user doesn't exist |
++| `PermissionError` | 103 | Authorization failures | Access denied, authentication failed, insufficient permissions |
++
++#### **Infrastructure Layer Errors (200-299)**
++System-level failures that should be rare and often require operational attention.
++
++| Error Type | Code | Description | When to Use |
++|------------|------|-------------|-------------|
++| `DataError` | 200 | Data processing errors | Database failures, data corruption, serialization errors |
++| `SystemError` | 201 | OS and file system errors | Disk full, file permission issues, OS-level failures |
++| `NetworkError` | 202 | Network connectivity errors | HTTP timeouts, connection failures, DNS resolution |
++| `ResourceError` | 203 | Resource exhaustion | Memory full, CPU overload, connection pool exhausted |
++| `TimeoutError` | 204 | Operation timeouts | Database query timeout, external service timeout |
++
++#### **Configuration & External Layer Errors (300-399)**
++Environment-related issues and third-party service failures.
++
++| Error Type | Code | Description | When to Use |
++|------------|------|-------------|-------------|
++| `ConfigError` | 300 | Configuration issues | Missing config files, invalid configuration values |
++| `ExternalError` | 301 | Third-party service errors | Payment gateway failures, external API failures |
+ 
++## Error Classification
+ ## Error Display
+ Built-in Display implementation shows full error chain:
+ ```text
+diff --git a/examples/order_case.rs b/examples/order_case.rs
+index 19ece76..18a879a 100644
+--- a/examples/order_case.rs
++++ b/examples/order_case.rs
+@@ -4,8 +4,7 @@
+ 
+ use derive_more::From;
+ use orion_error::{
+-    print_error, ErrorCode, ErrorConv, ErrorOwe, ErrorWith, StructError, UvsBizFrom, UvsReason,
+-    UvsSysFrom, WithContext,
++    print_error, ErrorCode, ErrorConv, ErrorOwe, ErrorWith, StructError, UvsReason, WithContext,
+ };
+ use serde::Serialize;
+ use std::{
+@@ -34,7 +33,7 @@ impl ErrorCode for OrderReason {
+ 
+ #[derive(Debug, PartialEq, Clone, Serialize, Error, From)]
+ pub enum StoreReason {
+-    #[error("storeage full")]
++    #[error("storage full")]
+     StorageFull,
+     #[error("{0}")]
+     Uvs(UvsReason),
+@@ -57,7 +56,21 @@ pub enum ParseReason {
+ }
+ impl ErrorCode for ParseReason {
+     fn error_code(&self) -> i32 {
+-        500
++        match self {
++            ParseReason::FormatError => 400,
++            ParseReason::Uvs(uvs_reason) => uvs_reason.error_code(),
++        }
++    }
++}
++
++impl From<ParseReason> for OrderReason {
++    fn from(value: ParseReason) -> Self {
++        match value {
++            ParseReason::FormatError => {
++                Self::Uvs(UvsReason::validation_error("order format error"))
++            }
++            ParseReason::Uvs(uvs_reason) => Self::Uvs(uvs_reason),
++        }
+     }
+ }
+ 
+@@ -72,7 +85,7 @@ pub enum UserReason {
+ impl From<UserReason> for OrderReason {
+     fn from(value: UserReason) -> Self {
+         match value {
+-            UserReason::NotFound => Self::Uvs(UvsReason::from_biz("logic fail".to_string())),
++            UserReason::NotFound => Self::Uvs(UvsReason::not_found_error("user not found")),
+             UserReason::Uvs(uvs_reason) => Self::Uvs(uvs_reason),
+         }
+     }
+@@ -81,7 +94,9 @@ impl From<UserReason> for OrderReason {
+ impl From<StoreReason> for OrderReason {
+     fn from(value: StoreReason) -> Self {
+         match value {
+-            StoreReason::StorageFull => Self::Uvs(UvsReason::from_sys("sys fail".to_string())),
++            StoreReason::StorageFull => {
++                Self::Uvs(UvsReason::resource_error("storage capacity exceeded"))
++            }
+             StoreReason::Uvs(uvs_reason) => Self::Uvs(uvs_reason),
+         }
+     }
+@@ -174,7 +189,13 @@ impl OrderService {
+                 .err();
+         }
+ 
+-        // 模拟解析逻辑
++        // 模拟解析逻辑 - 验证金额
++        if amount <= 0.0 {
++            return ParseError::from(ParseReason::FormatError)
++                .with_detail("订单金额必须大于零")
++                .err();
++        }
++
+         Ok(storage::Order {
+             user_id: 123,
+             amount,
+@@ -237,4 +258,10 @@ fn main() {
+     if let Err(e) = case4 {
+         print_error(&e);
+     }
++
++    // 测试用例 5: 金额验证失败
++    let case5 = OrderService::place_order(123, 0.0, "negative_amount");
++    if let Err(e) = case5 {
++        print_error(&e);
++    }
+ }
+diff --git a/src/core/case.rs b/src/core/case.rs
+index 317d200..76abf37 100644
+--- a/src/core/case.rs
++++ b/src/core/case.rs
+@@ -108,8 +108,8 @@ mod tests {
+         let display_output = format!("{err}");
+         println!("{display_output}");
+ 
+-        assert!(display_output.contains("[105]")); // ConfError的error code
+-        assert!(display_output.contains("conf error << core config > config missing"));
++        assert!(display_output.contains("[300]")); // ConfError的error code
++        assert!(display_output.contains("configuration error << core config > config missing"));
+         assert!(display_output.contains("-> At: src/config.rs:42"));
+         assert!(display_output.contains("-> Want: database_config"));
+         assert!(display_output.contains("-> Details: missing db config"));
+diff --git a/src/core/mod.rs b/src/core/mod.rs
+index 240b5ca..ab19349 100644
+--- a/src/core/mod.rs
++++ b/src/core/mod.rs
+@@ -14,8 +14,9 @@ pub use domain::DomainReason;
+ pub use error::{convert_error, StructError, StructErrorTrait};
+ pub use reason::ErrorCode;
+ pub use universal::{
+-    ConfErrReason, UvsBizFrom, UvsConfFrom, UvsDataFrom, UvsLogicFrom, UvsNetFrom, UvsReason,
+-    UvsResFrom, UvsRuleFrom, UvsSysFrom, UvsTimeoutFrom,
++    ConfErrReason, UvsBizFrom, UvsConfFrom, UvsDataFrom, UvsExternalFrom, UvsNetFrom,
++    UvsNotFoundFrom, UvsPermissionFrom, UvsReason, UvsResFrom, UvsSysFrom, UvsTimeoutFrom,
++    UvsValidationFrom,
+ };
+ 
+ pub enum ErrStrategy {
+diff --git a/src/core/universal.rs b/src/core/universal.rs
+index 3868e8a..0f50ec5 100644
+--- a/src/core/universal.rs
++++ b/src/core/universal.rs
+@@ -4,6 +4,8 @@ use thiserror::Error;
+ 
+ use super::ErrorCode;
+ 
++/// Configuration error sub-classification
++/// 配置错误子分类
+ #[derive(Debug, Error, PartialEq, Clone, Serialize)]
+ pub enum ConfErrReason {
+     #[error("core config > {0}")]
+@@ -14,48 +16,128 @@ pub enum ConfErrReason {
+     Dynamic(String),
+ }
+ 
+-/// Universal error reason classification
+-/// 统一错误原因分类
++/// Universal error reason classification with clear hierarchical structure
++/// 统一错误原因分类 - 采用清晰的分层结构
+ ///
+-/// # Variants
+-/// - `LogicError`: Indicates business logic violations
+-/// - `SysError`: Represents system-level failures
++/// # Error Code Ranges
++/// - 100-199: Business Layer Errors (业务层错误)
++/// - 200-299: Infrastructure Layer Errors (基础设施层错误)
++/// - 300-399: Configuration & External Layer Errors (配置和外部层错误)
++///
++/// # Classification Principles
++/// - Business Layer: User-facing errors that are expected in normal operation
++/// - Infrastructure Layer: System-level failures that should be rare
++/// - Configuration & External: Environment and third-party service issues
+ #[derive(Debug, Error, PartialEq, Clone, Serialize)]
+ pub enum UvsReason {
+-    #[error("logic error << {0}")]
+-    LogicError(ErrorPayload),
+-    #[error("biz error << {0}")]
+-    BizError(ErrorPayload),
++    // === Business Layer Errors (100-199) ===
++    /// Input validation errors (格式错误、参数校验失败等)
++    #[error("validation error << {0}")]
++    ValidationError(ErrorPayload),
++
++    /// Business logic rule violations (业务规则违反、状态冲突等)
++    #[error("business logic error << {0}")]
++    BusinessError(ErrorPayload),
++
++    /// Resource not found (查询的资源不存在)
++    #[error("not found error << {0}")]
++    NotFoundError(ErrorPayload),
++
++    /// Permission and authorization errors (权限不足、认证失败)
++    #[error("permission error << {0}")]
++    PermissionError(ErrorPayload),
++
++    // === Infrastructure Layer Errors (200-299) ===
++    /// Database and data processing errors (数据库操作、数据格式错误)
+     #[error("data error << {0}")]
+     DataError(ErrorPayload, Option<usize>),
+-    #[error("sys error << {0}")]
+-    SysError(ErrorPayload),
+-    #[error("res error << {0}")]
+-    ResError(ErrorPayload),
+-    #[error("conf error << {0}")]
+-    ConfError(ConfErrReason),
+-    #[error("rule error << {0}")]
+-    RuleError(ErrorPayload),
+-    #[error("privacy error << {0}")]
+-    PrivacyError(ErrorPayload),
+-    #[error("res error << {0}")]
+-    NetError(ErrorPayload),
+-    #[error("timeout << {0}")]
+-    Timeout(ErrorPayload),
++
++    /// File system and OS-level errors (文件系统、操作系统错误)
++    #[error("system error << {0}")]
++    SystemError(ErrorPayload),
++
++    /// Network connectivity and protocol errors (网络连接、HTTP请求错误)
++    #[error("network error << {0}")]
++    NetworkError(ErrorPayload),
++
++    /// Resource exhaustion (内存不足、磁盘空间不足等)
++    #[error("resource error << {0}")]
++    ResourceError(ErrorPayload),
++
++    /// Operation timeouts (操作超时)
++    #[error("timeout error << {0}")]
++    TimeoutError(ErrorPayload),
++
++    // === Configuration & External Layer Errors (300-399) ===
++    /// Configuration-related errors (配置相关错误)
++    #[error("configuration error << {0}")]
++    ConfigError(ConfErrReason),
++
++    /// Third-party service errors (第三方服务错误)
++    #[error("external service error << {0}")]
++    ExternalError(ErrorPayload),
+ }
+ 
+ impl UvsReason {
++    // === Configuration Error Constructors ===
+     pub fn core_conf<S: Into<String>>(msg: S) -> Self {
+-        Self::ConfError(ConfErrReason::Core(msg.into()))
++        Self::ConfigError(ConfErrReason::Core(msg.into()))
+     }
++
+     pub fn feature_conf<S: Into<String>>(msg: S) -> Self {
+-        Self::ConfError(ConfErrReason::Feature(msg.into()))
++        Self::ConfigError(ConfErrReason::Feature(msg.into()))
+     }
++
+     pub fn dynamic_conf<S: Into<String>>(msg: S) -> Self {
+-        Self::ConfError(ConfErrReason::Dynamic(msg.into()))
++        Self::ConfigError(ConfErrReason::Dynamic(msg.into()))
++    }
++
++    // === Business Layer Constructors ===
++    pub fn validation_error<S: Into<String>>(msg: S) -> Self {
++        Self::ValidationError(ErrorPayload::new(msg))
++    }
++
++    pub fn business_error<S: Into<String>>(msg: S) -> Self {
++        Self::BusinessError(ErrorPayload::new(msg))
++    }
++
++    pub fn not_found_error<S: Into<String>>(msg: S) -> Self {
++        Self::NotFoundError(ErrorPayload::new(msg))
++    }
++
++    pub fn permission_error<S: Into<String>>(msg: S) -> Self {
++        Self::PermissionError(ErrorPayload::new(msg))
++    }
++
++    // === Infrastructure Layer Constructors ===
++    pub fn data_error<S: Into<String>>(msg: S, pos: Option<usize>) -> Self {
++        Self::DataError(ErrorPayload::new(msg), pos)
++    }
++
++    pub fn system_error<S: Into<String>>(msg: S) -> Self {
++        Self::SystemError(ErrorPayload::new(msg))
++    }
++
++    pub fn network_error<S: Into<String>>(msg: S) -> Self {
++        Self::NetworkError(ErrorPayload::new(msg))
++    }
++
++    pub fn resource_error<S: Into<String>>(msg: S) -> Self {
++        Self::ResourceError(ErrorPayload::new(msg))
++    }
++
++    pub fn timeout_error<S: Into<String>>(msg: S) -> Self {
++        Self::TimeoutError(ErrorPayload::new(msg))
++    }
++
++    // === External Layer Constructors ===
++    pub fn external_error<S: Into<String>>(msg: S) -> Self {
++        Self::ExternalError(ErrorPayload::new(msg))
+     }
+ }
+ 
++// === Trait Definitions for Type Conversion ===
++
+ pub trait UvsConfFrom<S> {
+     fn from_conf(info: S) -> Self;
+ }
+@@ -67,12 +149,6 @@ pub trait UvsDataFrom<S> {
+ pub trait UvsSysFrom<S> {
+     fn from_sys(info: S) -> Self;
+ }
+-pub trait UvsRuleFrom<S> {
+-    fn from_rule(info: S) -> Self;
+-}
+-pub trait UvsLogicFrom<S> {
+-    fn from_logic(info: S) -> Self;
+-}
+ 
+ pub trait UvsBizFrom<S> {
+     fn from_biz(info: S) -> Self;
+@@ -90,6 +166,24 @@ pub trait UvsTimeoutFrom<S> {
+     fn from_timeout(info: S) -> Self;
+ }
+ 
++// Additional traits for new error types
++pub trait UvsValidationFrom<S> {
++    fn from_validation(info: S) -> Self;
++}
++
++pub trait UvsNotFoundFrom<S> {
++    fn from_not_found(info: S) -> Self;
++}
++
++pub trait UvsPermissionFrom<S> {
++    fn from_permission(info: S) -> Self;
++}
++
++pub trait UvsExternalFrom<S> {
++    fn from_external(info: S) -> Self;
++}
++
++/// Strongly typed error payload wrapper
+ /// 强类型错误负载包装
+ #[derive(Debug, PartialEq, Clone, Serialize)]
+ pub struct ErrorPayload(String);
+@@ -98,6 +192,14 @@ impl ErrorPayload {
+     pub fn new<S: Into<String>>(s: S) -> Self {
+         Self(s.into())
+     }
++
++    pub fn as_str(&self) -> &str {
++        &self.0
++    }
++
++    pub fn into_inner(self) -> String {
++        self.0
++    }
+ }
+ 
+ impl Display for ErrorPayload {
+@@ -105,18 +207,27 @@ impl Display for ErrorPayload {
+         write!(f, "{:?}", self.0)
+     }
+ }
++
+ impl From<String> for ErrorPayload {
+     fn from(value: String) -> Self {
+         Self::new(value)
+     }
+ }
+ 
++impl From<&str> for ErrorPayload {
++    fn from(value: &str) -> Self {
++        Self::new(value.to_string())
++    }
++}
++
++// === Trait Implementations ===
++
+ impl<T> UvsConfFrom<String> for T
+ where
+     T: From<UvsReason>,
+ {
+     fn from_conf(reason: String) -> Self {
+-        T::from(UvsReason::ConfError(ConfErrReason::Core(reason)))
++        T::from(UvsReason::core_conf(reason))
+     }
+ }
+ 
+@@ -125,7 +236,7 @@ where
+     T: From<UvsReason>,
+ {
+     fn from_conf(reason: ConfErrReason) -> Self {
+-        T::from(UvsReason::ConfError(reason))
++        T::from(UvsReason::ConfigError(reason))
+     }
+ }
+ 
+@@ -134,7 +245,7 @@ where
+     T: From<UvsReason>,
+ {
+     fn from_data(info: String, pos: Option<usize>) -> Self {
+-        T::from(UvsReason::DataError(ErrorPayload::new(info), pos))
++        T::from(UvsReason::data_error(info, pos))
+     }
+ }
+ 
+@@ -143,7 +254,7 @@ where
+     T: From<UvsReason>,
+ {
+     fn from_sys(info: String) -> Self {
+-        T::from(UvsReason::SysError(ErrorPayload(info)))
++        T::from(UvsReason::system_error(info))
+     }
+ }
+ 
+@@ -152,67 +263,216 @@ where
+     T: From<UvsReason>,
+ {
+     fn from_biz(info: String) -> Self {
+-        T::from(UvsReason::BizError(ErrorPayload(info)))
++        T::from(UvsReason::business_error(info))
+     }
+ }
+ 
+-impl<T> UvsRuleFrom<String> for T
++impl<T> UvsResFrom<String> for T
+ where
+     T: From<UvsReason>,
+ {
+-    fn from_rule(info: String) -> T {
+-        T::from(UvsReason::RuleError(ErrorPayload(info)))
++    fn from_res(info: String) -> Self {
++        T::from(UvsReason::resource_error(info))
+     }
+ }
+-impl<T> UvsLogicFrom<String> for T
++
++impl<T> UvsNetFrom<String> for T
+ where
+     T: From<UvsReason>,
+ {
+-    fn from_logic(info: String) -> Self {
+-        T::from(UvsReason::LogicError(ErrorPayload(info)))
++    fn from_net(info: String) -> Self {
++        T::from(UvsReason::network_error(info)) // Fixed: was incorrectly mapping to BizError
+     }
+ }
+ 
+-impl<T> UvsResFrom<String> for T
++impl<T> UvsTimeoutFrom<String> for T
+ where
+     T: From<UvsReason>,
+ {
+-    fn from_res(info: String) -> Self {
+-        T::from(UvsReason::ResError(ErrorPayload(info)))
++    fn from_timeout(info: String) -> Self {
++        T::from(UvsReason::timeout_error(info))
+     }
+ }
+ 
+-impl ErrorCode for UvsReason {
+-    fn error_code(&self) -> i32 {
+-        match self {
+-            UvsReason::LogicError(_) => 100,
+-            UvsReason::BizError(_) => 101,
+-            UvsReason::DataError(_, _) => 102,
+-            UvsReason::SysError(_) => 103,
+-            UvsReason::ResError(_) => 104,
+-            UvsReason::ConfError(_) => 105,
+-            UvsReason::RuleError(_) => 106,
+-            UvsReason::PrivacyError(_) => 107,
+-            UvsReason::NetError(_) => 108,
+-            UvsReason::Timeout(_) => 109,
+-        }
++// New trait implementations for additional error types
++impl<T> UvsValidationFrom<String> for T
++where
++    T: From<UvsReason>,
++{
++    fn from_validation(info: String) -> Self {
++        T::from(UvsReason::validation_error(info))
+     }
+ }
+ 
+-impl<T> UvsNetFrom<String> for T
++impl<T> UvsNotFoundFrom<String> for T
+ where
+     T: From<UvsReason>,
+ {
+-    fn from_net(info: String) -> Self {
+-        T::from(UvsReason::BizError(ErrorPayload(info)))
++    fn from_not_found(info: String) -> Self {
++        T::from(UvsReason::not_found_error(info))
+     }
+ }
+ 
+-impl<T> UvsTimeoutFrom<String> for T
++impl<T> UvsPermissionFrom<String> for T
+ where
+     T: From<UvsReason>,
+ {
+-    fn from_timeout(info: String) -> Self {
+-        T::from(UvsReason::Timeout(ErrorPayload(info)))
++    fn from_permission(info: String) -> Self {
++        T::from(UvsReason::permission_error(info))
++    }
++}
++
++impl<T> UvsExternalFrom<String> for T
++where
++    T: From<UvsReason>,
++{
++    fn from_external(info: String) -> Self {
++        T::from(UvsReason::external_error(info))
++    }
++}
++
++impl ErrorCode for UvsReason {
++    fn error_code(&self) -> i32 {
++        match self {
++            // === Business Layer Errors (100-199) ===
++            UvsReason::ValidationError(_) => 100,
++            UvsReason::BusinessError(_) => 101,
++            UvsReason::NotFoundError(_) => 102,
++            UvsReason::PermissionError(_) => 103,
++
++            // === Infrastructure Layer Errors (200-299) ===
++            UvsReason::DataError(_, _) => 200,
++            UvsReason::SystemError(_) => 201,
++            UvsReason::NetworkError(_) => 202,
++            UvsReason::ResourceError(_) => 203,
++            UvsReason::TimeoutError(_) => 204,
++
++            // === Configuration & External Layer Errors (300-399) ===
++            UvsReason::ConfigError(_) => 300,
++            UvsReason::ExternalError(_) => 301,
++        }
++    }
++}
++
++// === Helper Functions for Common Use Cases ===
++
++impl UvsReason {
++    /// Check if this error is retryable
++    /// 检查错误是否可重试
++    pub fn is_retryable(&self) -> bool {
++        match self {
++            // Infrastructure errors are often retryable
++            UvsReason::NetworkError(_) => true,
++            UvsReason::TimeoutError(_) => true,
++            UvsReason::ResourceError(_) => true,
++            UvsReason::SystemError(_) => true,
++            UvsReason::ExternalError(_) => true,
++
++            // Business logic errors are generally not retryable
++            UvsReason::ValidationError(_) => false,
++            UvsReason::BusinessError(_) => false,
++            UvsReason::NotFoundError(_) => false,
++            UvsReason::PermissionError(_) => false,
++
++            // Configuration errors require manual intervention
++            UvsReason::ConfigError(_) => false,
++            UvsReason::DataError(_, _) => false,
++        }
++    }
++
++    /// Check if this error should be logged with high severity
++    /// 检查错误是否需要高优先级记录
++    pub fn is_high_severity(&self) -> bool {
++        match self {
++            // System and infrastructure issues are high severity
++            UvsReason::SystemError(_) => true,
++            UvsReason::ResourceError(_) => true,
++            UvsReason::ConfigError(_) => true,
++
++            // Others are normal business operations
++            _ => false,
++        }
++    }
++
++    /// Get error category name for monitoring and metrics
++    /// 获取错误类别名称用于监控和指标
++    pub fn category_name(&self) -> &'static str {
++        match self {
++            UvsReason::ValidationError(_) => "validation",
++            UvsReason::BusinessError(_) => "business",
++            UvsReason::NotFoundError(_) => "not_found",
++            UvsReason::PermissionError(_) => "permission",
++            UvsReason::DataError(_, _) => "data",
++            UvsReason::SystemError(_) => "system",
++            UvsReason::NetworkError(_) => "network",
++            UvsReason::ResourceError(_) => "resource",
++            UvsReason::TimeoutError(_) => "timeout",
++            UvsReason::ConfigError(_) => "config",
++            UvsReason::ExternalError(_) => "external",
++        }
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    #[test]
++    fn test_error_code_ranges() {
++        // Business layer (100-199)
++        assert_eq!(UvsReason::validation_error("test").error_code(), 100);
++        assert_eq!(UvsReason::business_error("test").error_code(), 101);
++        assert_eq!(UvsReason::not_found_error("test").error_code(), 102);
++        assert_eq!(UvsReason::permission_error("test").error_code(), 103);
++
++        // Infrastructure layer (200-299)
++        assert_eq!(UvsReason::data_error("test", None).error_code(), 200);
++        assert_eq!(UvsReason::system_error("test").error_code(), 201);
++        assert_eq!(UvsReason::network_error("test").error_code(), 202);
++        assert_eq!(UvsReason::resource_error("test").error_code(), 203);
++        assert_eq!(UvsReason::timeout_error("test").error_code(), 204);
++
++        // Configuration & external layer (300-399)
++        assert_eq!(UvsReason::core_conf("test").error_code(), 300);
++        assert_eq!(UvsReason::external_error("test").error_code(), 301);
++    }
++
++    #[test]
++    fn test_retryable_errors() {
++        assert!(UvsReason::network_error("timeout").is_retryable());
++        assert!(UvsReason::timeout_error("request timeout").is_retryable());
++        assert!(!UvsReason::validation_error("invalid input").is_retryable());
++        assert!(!UvsReason::business_error("insufficient funds").is_retryable());
++    }
++
++    #[test]
++    fn test_high_severity_errors() {
++        assert!(UvsReason::system_error("disk full").is_high_severity());
++        assert!(UvsReason::resource_error("out of memory").is_high_severity());
++        assert!(!UvsReason::validation_error("bad format").is_high_severity());
++        assert!(!UvsReason::NotFoundError("user not found".into()).is_high_severity());
++    }
++
++    #[test]
++    fn test_category_names() {
++        assert_eq!(UvsReason::network_error("test").category_name(), "network");
++        assert_eq!(
++            UvsReason::business_error("test").category_name(),
++            "business"
++        );
++        assert_eq!(UvsReason::core_conf("test").category_name(), "config");
++    }
++
++    #[test]
++    fn test_trait_implementations() {
++        // Test that trait implementations work correctly
++        let reason: UvsReason = UvsReason::from_net("network error".to_string());
++        assert_eq!(reason.error_code(), 202);
++
++        let reason: UvsReason = UvsReason::from_validation("validation error".to_string());
++        assert_eq!(reason.error_code(), 100);
++
++        let reason: UvsReason = UvsReason::from_external("external error".to_string());
++        assert_eq!(reason.error_code(), 301);
+     }
+ }
+diff --git a/src/lib.rs b/src/lib.rs
+index db9612d..57dd53b 100644
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -6,8 +6,8 @@ pub use core::StructError;
+ pub use core::WithContext;
+ pub use core::{
+     print_error, ConfErrReason, DomainReason, ErrorCode, StructErrorTrait, UvsBizFrom, UvsConfFrom,
+-    UvsDataFrom, UvsLogicFrom, UvsNetFrom, UvsReason, UvsResFrom, UvsRuleFrom, UvsSysFrom,
+-    UvsTimeoutFrom,
++    UvsDataFrom, UvsExternalFrom, UvsNetFrom, UvsNotFoundFrom, UvsPermissionFrom, UvsReason,
++    UvsResFrom, UvsSysFrom, UvsTimeoutFrom, UvsValidationFrom,
+ };
+ pub use traits::ErrorOwe;
+ pub use traits::{ConvStructError, ErrorConv, ErrorWith, ToStructError};
+diff --git a/src/traits/owenance.rs b/src/traits/owenance.rs
+index 9536055..86a1371 100644
+--- a/src/traits/owenance.rs
++++ b/src/traits/owenance.rs
+@@ -1,6 +1,6 @@
+ use crate::{
+     core::{DomainReason, UvsNetFrom, UvsReason},
+-    StructError, UvsBizFrom, UvsDataFrom, UvsResFrom, UvsRuleFrom, UvsSysFrom, UvsTimeoutFrom,
++    StructError, UvsDataFrom, UvsSysFrom, UvsTimeoutFrom,
+ };
+ 
+ /// 非结构错误(StructError) 转化为结构错误。
+@@ -13,7 +13,7 @@ where
+     fn owe(self, reason: R) -> Result<T, StructError<R>>;
+     fn owe_logic(self) -> Result<T, StructError<R>>;
+     fn owe_biz(self) -> Result<T, StructError<R>>;
+-    fn owe_rule(self) -> Result<T, StructError<R>>;
++    fn owe_validation(self) -> Result<T, StructError<R>>;
+     fn owe_data(self) -> Result<T, StructError<R>>;
+     fn owe_conf(self) -> Result<T, StructError<R>>;
+     fn owe_res(self) -> Result<T, StructError<R>>;
+@@ -35,13 +35,13 @@ where
+     }
+ 
+     fn owe_logic(self) -> Result<T, StructError<R>> {
+-        self.map_err(|e| StructError::from(R::from(UvsReason::from_sys(e.to_string()))))
++        self.map_err(|e| StructError::from(R::from(UvsReason::system_error(e.to_string()))))
+     }
+     fn owe_biz(self) -> Result<T, StructError<R>> {
+-        self.map_err(|e| StructError::from(R::from(UvsReason::from_biz(e.to_string()))))
++        self.map_err(|e| StructError::from(R::from(UvsReason::business_error(e.to_string()))))
+     }
+-    fn owe_rule(self) -> Result<T, StructError<R>> {
+-        self.map_err(|e| StructError::from(R::from(UvsReason::from_rule(e.to_string()))))
++    fn owe_validation(self) -> Result<T, StructError<R>> {
++        self.map_err(|e| StructError::from(R::from(UvsReason::validation_error(e.to_string()))))
+     }
+     fn owe_data(self) -> Result<T, StructError<R>> {
+         self.map_err(|e| StructError::from(R::from(UvsReason::from_data(e.to_string(), None))))
+@@ -50,7 +50,7 @@ where
+         self.map_err(|e| StructError::from(R::from(UvsReason::core_conf(e.to_string()))))
+     }
+     fn owe_res(self) -> Result<T, StructError<R>> {
+-        self.map_err(|e| StructError::from(R::from(UvsReason::from_res(e.to_string()))))
++        self.map_err(|e| StructError::from(R::from(UvsReason::resource_error(e.to_string()))))
+     }
+     fn owe_net(self) -> Result<T, StructError<R>> {
+         self.map_err(|e| StructError::from(R::from(UvsReason::from_net(e.to_string()))))
+diff --git a/version.txt b/version.txt
+index 9fc80f9..60a2d3e 100644
+--- a/version.txt
++++ b/version.txt
+@@ -1 +1 @@
+-0.3.2
+\ No newline at end of file
++0.4.0
+\ No newline at end of file
