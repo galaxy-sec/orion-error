@@ -6,7 +6,7 @@ mod tests {
     use thiserror::Error;
 
     use crate::{
-        core::convert_error, ErrorCode, ErrorWith, OperationContext, StructError,
+        core::convert_error, ContextRecord, ErrorCode, ErrorWith, OperationContext, StructError,
         TestAssertWithMsg, UvsReason,
     };
 
@@ -64,7 +64,7 @@ mod tests {
     #[test]
     fn test_error_context() {
         let mut ctx = OperationContext::want("user_profile");
-        ctx.with("user_id", "12345");
+        ctx.record("user_id", "12345");
 
         let err = StructError::from(TestDomainReason::Why1).with(ctx);
 
@@ -94,8 +94,8 @@ mod tests {
     #[test]
     fn test_error_display() {
         let mut ctx = OperationContext::new();
-        ctx.with("step", "initialization");
-        ctx.with("resource", "database");
+        ctx.record("step", "initialization");
+        ctx.record("resource", "database");
 
         let err = StructError::from(TestDomainReason::Uvs(UvsReason::core_conf(
             "config missing",

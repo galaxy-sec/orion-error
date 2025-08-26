@@ -7,22 +7,35 @@ use std::{
 };
 use thiserror::Error;
 
-#[derive(Debug, Clone, Getters, Default, Serialize, Deserialize, PartialEq)]
+const DEFAULT_MOD_PATH: &str = "...";
+#[derive(Debug, Clone, Getters, Serialize, Deserialize, PartialEq)]
 pub struct OperationContext {
-    target: Option<String>,
     context: CallContext,
     is_suc: bool,
     exit_log: bool,
+    mod_path: String,
+    target: Option<String>,
 }
-#[allow(dead_code)]
+impl Default for OperationContext {
+    fn default() -> Self {
+        Self {
+            context: CallContext::default(),
+            target: None,
+            is_suc: false,
+            exit_log: false,
+            mod_path: DEFAULT_MOD_PATH.into(),
+        }
+    }
+}
 pub type WithContext = OperationContext;
 impl From<CallContext> for OperationContext {
     fn from(value: CallContext) -> Self {
-        Self {
-            target: None,
+        OperationContext {
             context: value,
+            target: None,
             is_suc: false,
             exit_log: false,
+            mod_path: DEFAULT_MOD_PATH.into(),
         }
     }
 }
@@ -97,12 +110,7 @@ where
 
 impl OperationContext {
     pub fn new() -> Self {
-        Self {
-            target: None,
-            context: CallContext::default(),
-            is_suc: false,
-            exit_log: false,
-        }
+        Self::default()
     }
     pub fn want<S: Into<String>>(target: S) -> Self {
         Self {
@@ -110,16 +118,28 @@ impl OperationContext {
             context: CallContext::default(),
             is_suc: false,
             exit_log: false,
+            mod_path: DEFAULT_MOD_PATH.into(),
         }
     }
+    #[deprecated = "use with_auto_log"]
     pub fn with_exit_log(mut self) -> Self {
         self.exit_log = true;
         self
     }
+    pub fn with_auto_log(mut self) -> Self {
+        self.exit_log = true;
+        self
+    }
+    pub fn with_mod_path<S: Into<String>>(mut self, path: S) -> Self {
+        self.mod_path = path.into();
+        self
+    }
+    #[deprecated = "use record"]
     pub fn with<S1: Into<String>, S2: Into<String>>(&mut self, key: S1, val: S2) {
         self.context.items.push((key.into(), val.into()));
     }
 
+    #[deprecated = "use record"]
     pub fn with_path<S1: Into<String>, S2: Into<PathBuf>>(&mut self, key: S1, val: S2) {
         self.context
             .items
@@ -155,22 +175,22 @@ impl OperationContext {
 
     pub fn debug<S: AsRef<str>>(&self, message: S) {
         // 使用log::debug宏记录调试级别日志
-        debug!("{}: {}", self.format_context(), message.as_ref());
+        debug!( target: self.mod_path.as_str(),"{}: {}", self.format_context(), message.as_ref());
     }
 
     pub fn warn<S: AsRef<str>>(&self, message: S) {
         // 使用log::warn宏记录警告级别日志
-        warn!("{}: {}", self.format_context(), message.as_ref());
+        warn!( target: self.mod_path.as_str(),"{}: {}", self.format_context(), message.as_ref());
     }
 
     pub fn error<S: AsRef<str>>(&self, message: S) {
         // 使用log::error宏记录错误级别日志
-        error!("{}: {}", self.format_context(), message.as_ref());
+        error!(target: self.mod_path.as_str(),"{}: {}", self.format_context(), message.as_ref());
     }
 
     pub fn trace<S: AsRef<str>>(&self, message: S) {
         // 使用log::trace宏记录跟踪级别日志
-        trace!("{}: {}", self.format_context(), message.as_ref());
+        trace!(target: self.mod_path.as_str(),"{}: {}", self.format_context(), message.as_ref());
     }
 }
 
@@ -181,6 +201,7 @@ impl From<String> for OperationContext {
             context: CallContext::from(("key", value.to_string())),
             is_suc: false,
             exit_log: false,
+            mod_path: DEFAULT_MOD_PATH.into(),
         }
     }
 }
@@ -192,6 +213,7 @@ impl From<&PathBuf> for OperationContext {
             context: CallContext::from(("path", format!("{}", value.display()))),
             is_suc: false,
             exit_log: false,
+            mod_path: DEFAULT_MOD_PATH.into(),
         }
     }
 }
@@ -203,6 +225,7 @@ impl From<&Path> for OperationContext {
             context: CallContext::from(("path", format!("{}", value.display()))),
             is_suc: false,
             exit_log: false,
+            mod_path: DEFAULT_MOD_PATH.into(),
         }
     }
 }
@@ -214,6 +237,7 @@ impl From<&str> for OperationContext {
             context: CallContext::from(("key", value.to_string())),
             is_suc: false,
             exit_log: false,
+            mod_path: DEFAULT_MOD_PATH.into(),
         }
     }
 }
@@ -225,6 +249,7 @@ impl From<(&str, &str)> for OperationContext {
             context: CallContext::from((value.0, value.1)),
             is_suc: false,
             exit_log: false,
+            mod_path: DEFAULT_MOD_PATH.into(),
         }
     }
 }
@@ -236,6 +261,7 @@ impl From<(&str, String)> for OperationContext {
             context: CallContext::from((value.0, value.1)),
             is_suc: false,
             exit_log: false,
+            mod_path: DEFAULT_MOD_PATH.into(),
         }
     }
 }
@@ -262,6 +288,7 @@ where
             },
             is_suc: false,
             exit_log: false,
+            mod_path: DEFAULT_MOD_PATH.into(),
         }
     }
 }
@@ -273,6 +300,7 @@ impl From<(String, String)> for OperationContext {
             context: CallContext::from((value.0, value.1)),
             is_suc: false,
             exit_log: false,
+            mod_path: DEFAULT_MOD_PATH.into(),
         }
     }
 }
@@ -302,28 +330,28 @@ pub trait ContextAdd<T> {
 
 impl<K: Into<String>> ContextAdd<(K, String)> for OperationContext {
     fn add_context(&mut self, val: (K, String)) {
-        self.with(val.0.into(), val.1);
+        self.record(val.0.into(), val.1);
     }
 }
 impl<K: Into<String>> ContextAdd<(K, &String)> for OperationContext {
     fn add_context(&mut self, val: (K, &String)) {
-        self.with(val.0.into(), val.1.clone());
+        self.record(val.0.into(), val.1.clone());
     }
 }
 impl<K: Into<String>> ContextAdd<(K, &str)> for OperationContext {
     fn add_context(&mut self, val: (K, &str)) {
-        self.with(val.0.into(), val.1.to_string());
+        self.record(val.0.into(), val.1.to_string());
     }
 }
 
 impl<K: Into<String>> ContextAdd<(K, &PathBuf)> for OperationContext {
     fn add_context(&mut self, val: (K, &PathBuf)) {
-        self.with(val.0.into(), format!("{}", val.1.display()));
+        self.record(val.0.into(), format!("{}", val.1.display()));
     }
 }
 impl<K: Into<String>> ContextAdd<(K, &Path)> for OperationContext {
     fn add_context(&mut self, val: (K, &Path)) {
-        self.with(val.0.into(), format!("{}", val.1.display()));
+        self.record(val.0.into(), format!("{}", val.1.display()));
     }
 }
 
@@ -361,8 +389,8 @@ mod tests {
     #[test]
     fn test_withcontext_with() {
         let mut ctx = OperationContext::new();
-        ctx.with("key1", "value1");
-        ctx.with("key2", "value2");
+        ctx.record("key1", "value1");
+        ctx.record("key2", "value2");
 
         assert_eq!(ctx.context().items.len(), 2);
         assert_eq!(
@@ -379,7 +407,7 @@ mod tests {
     fn test_withcontext_with_path() {
         let mut ctx = OperationContext::new();
         let path = PathBuf::from("/test/path");
-        ctx.with_path("file_path", &path);
+        ctx.record("file_path", &path);
 
         assert_eq!(ctx.context().items.len(), 1);
         assert!(ctx.context().items[0].1.contains("/test/path"));
@@ -546,7 +574,7 @@ mod tests {
     #[test]
     fn test_withcontext_display_with_target() {
         let mut ctx = OperationContext::want("test_target");
-        ctx.with("key1", "value1");
+        ctx.record("key1", "value1");
         let display = format!("{ctx}");
         assert!(display.contains("target: test_target"));
         assert!(display.contains("1. key1: value1"));
@@ -555,7 +583,7 @@ mod tests {
     #[test]
     fn test_withcontext_display_without_target() {
         let mut ctx = OperationContext::new();
-        ctx.with("key1", "value1");
+        ctx.record("key1", "value1");
         let display = format!("{ctx}");
         assert!(!display.contains("target:"));
         assert!(display.contains("1. key1: value1"));
@@ -576,7 +604,7 @@ mod tests {
     #[test]
     fn test_withcontext_from_withcontext() {
         let mut ctx1 = OperationContext::want("target1");
-        ctx1.with("key1", "value1");
+        ctx1.record("key1", "value1");
         let ctx2 = OperationContext::from(&ctx1);
         assert_eq!(*ctx2.target(), Some("target1".to_string()));
         assert_eq!(ctx2.context().items.len(), 1);
@@ -641,7 +669,7 @@ mod tests {
     #[test]
     fn test_withcontext_clone() {
         let mut ctx = OperationContext::want("target");
-        ctx.with("key", "value");
+        ctx.record("key", "value");
 
         let cloned = ctx.clone();
         assert_eq!(ctx.target(), cloned.target());
@@ -654,9 +682,9 @@ mod tests {
         let mut ctx = OperationContext::new();
 
         // 测试各种类型转换
-        ctx.with("string_key", "string_value");
-        ctx.with("string_key", 42.to_string()); // 数字转字符串
-        ctx.with("bool_key", true.to_string()); // 布尔转字符串
+        ctx.record("string_key", "string_value");
+        ctx.record("string_key", 42.to_string()); // 数字转字符串
+        ctx.record("bool_key", true.to_string()); // 布尔转字符串
 
         assert_eq!(ctx.context().items.len(), 3);
 
@@ -678,10 +706,10 @@ mod tests {
 
     #[test]
     fn test_with_exit_log() {
-        let ctx = OperationContext::new().with_exit_log();
+        let ctx = OperationContext::new().with_auto_log();
         assert!(ctx.exit_log);
 
-        let ctx2 = OperationContext::want("test").with_exit_log();
+        let ctx2 = OperationContext::want("test").with_auto_log();
         assert!(ctx2.exit_log);
         assert_eq!(*ctx2.target(), Some("test".to_string()));
     }
@@ -689,7 +717,7 @@ mod tests {
     #[test]
     fn test_format_context_with_target() {
         let mut ctx = OperationContext::want("test_target");
-        ctx.with("key1", "value1");
+        ctx.record("key1", "value1");
 
         let formatted = ctx.format_context();
         assert_eq!(formatted, "test_target: \ncall context:\n\tkey1 : value1\n");
@@ -698,7 +726,7 @@ mod tests {
     #[test]
     fn test_format_context_without_target() {
         let mut ctx = OperationContext::new();
-        ctx.with("key1", "value1");
+        ctx.record("key1", "value1");
 
         let formatted = ctx.format_context();
         assert_eq!(formatted, ": \ncall context:\n\tkey1 : value1\n");
@@ -764,8 +792,8 @@ mod tests {
     #[test]
     fn test_drop_trait_with_success() {
         {
-            let mut ctx = OperationContext::want("test_drop").with_exit_log();
-            ctx.with("operation", "test");
+            let mut ctx = OperationContext::want("test_drop").with_auto_log();
+            ctx.record("operation", "test");
             ctx.mark_suc(); // 标记为成功
                             // ctx 在这里离开作用域，会触发Drop trait
         }
@@ -776,8 +804,8 @@ mod tests {
     #[test]
     fn test_drop_trait_with_failure() {
         {
-            let mut ctx = OperationContext::want("test_drop_fail").with_exit_log();
-            ctx.with("operation", "test_fail");
+            let mut ctx = OperationContext::want("test_drop_fail").with_auto_log();
+            ctx.record("operation", "test_fail");
             // 不调用mark_suc，保持is_suc = false
             // ctx 在这里离开作用域，会触发Drop trait
         }
@@ -789,7 +817,7 @@ mod tests {
     fn test_drop_trait_without_exit_log() {
         {
             let mut ctx = OperationContext::want("test_no_log");
-            ctx.with("operation", "no_log");
+            ctx.record("operation", "no_log");
             ctx.mark_suc();
             // exit_log = false，不会触发日志输出
             // ctx 在这里离开作用域，Drop trait应该什么都不做
@@ -800,12 +828,12 @@ mod tests {
     #[test]
     fn test_complex_context_scenario() {
         // 模拟一个复杂的操作场景
-        let mut ctx = OperationContext::want("user_registration").with_exit_log();
+        let mut ctx = OperationContext::want("user_registration").with_auto_log();
 
         // 添加各种上下文信息
-        ctx.with("user_id", "12345");
-        ctx.with("email", "test@example.com");
-        ctx.with("role", "user");
+        ctx.record("user_id", "12345");
+        ctx.record("email", "test@example.com");
+        ctx.record("role", "user");
 
         // 记录各种级别的日志
         ctx.info("开始用户注册流程");
@@ -833,8 +861,8 @@ mod tests {
     #[test]
     fn test_context_serialization() {
         let mut ctx = OperationContext::want("serialization_test");
-        ctx.with("key1", "value1");
-        ctx.with("key2", "value2");
+        ctx.record("key1", "value1");
+        ctx.record("key2", "value2");
 
         // 测试序列化
         let serialized = serde_json::to_string(&ctx).expect("序列化失败");
@@ -853,9 +881,9 @@ mod tests {
         let mut ctx = OperationContext::new();
 
         // 测试特殊字符
-        ctx.with("key_with_spaces", "value with spaces");
-        ctx.with("key_with_unicode", "值包含中文");
-        ctx.with("key_with_symbols", "value@#$%^&*()");
+        ctx.record("key_with_spaces", "value with spaces");
+        ctx.record("key_with_unicode", "值包含中文");
+        ctx.record("key_with_symbols", "value@#$%^&*()");
 
         assert_eq!(ctx.context().items.len(), 3);
         assert_eq!(
@@ -884,7 +912,7 @@ mod tests {
     #[test]
     fn test_context_builder_pattern() {
         // 测试构建器模式的使用
-        let ctx = OperationContext::want("builder_test").with_exit_log();
+        let ctx = OperationContext::want("builder_test").with_auto_log();
 
         assert_eq!(*ctx.target(), Some("builder_test".to_string()));
         assert!(ctx.exit_log);
@@ -895,10 +923,10 @@ mod tests {
         let mut ctx = OperationContext::new();
 
         // 多次调用with方法
-        ctx.with("key1", "value1");
-        ctx.with("key2", "value2");
-        ctx.with("key3", "value3");
-        ctx.with("key1", "new_value1"); // 覆盖key1
+        ctx.record("key1", "value1");
+        ctx.record("key2", "value2");
+        ctx.record("key3", "value3");
+        ctx.record("key1", "new_value1"); // 覆盖key1
 
         // 注意：当前实现允许重复的key，这是预期的行为
         assert_eq!(ctx.context().items.len(), 4);
