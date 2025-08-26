@@ -1,6 +1,6 @@
 [package]
 name = "orion-error"
-version = "0.5.2"
+version = "0.5.3"
 edition = "2021"
 authors = ["wukong <sec-wukong@outlook.com>"]
 description = "Struct Error for Large Project"
