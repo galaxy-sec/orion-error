@@ -6,12 +6,18 @@ use std::{
     path::{Path, PathBuf},
 };
 use thiserror::Error;
-
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+pub enum OperationResult {
+    Suc,
+    #[default]
+    Fail,
+    Cancel,
+}
 #[derive(Debug, Clone, Getters, Default, Serialize, Deserialize, PartialEq)]
 pub struct OperationContext {
     target: Option<String>,
     context: CallContext,
-    is_suc: bool,
+    result: OperationResult,
     exit_log: bool,
 }
 #[allow(dead_code)]
@@ -21,7 +27,7 @@ impl From<CallContext> for OperationContext {
         Self {
             target: None,
             context: value,
-            is_suc: false,
+            result: OperationResult::Fail,
             exit_log: false,
         }
     }
@@ -30,10 +36,16 @@ impl From<CallContext> for OperationContext {
 impl Drop for OperationContext {
     fn drop(&mut self) {
         if self.exit_log {
-            if self.is_suc {
-                info!("suc! {}", self.format_context());
-            } else {
-                error!("fail! {}", self.format_context());
+            match self.result() {
+                OperationResult::Suc => {
+                    info!("suc! {}", self.format_context());
+                }
+                OperationResult::Fail => {
+                    error!("fail! {}", self.format_context());
+                }
+                OperationResult::Cancel => {
+                    warn!("cancel ! {}", self.format_context());
+                }
             }
         }
     }
@@ -100,7 +112,7 @@ impl OperationContext {
         Self {
             target: None,
             context: CallContext::default(),
-            is_suc: false,
+            result: OperationResult::Fail,
             exit_log: false,
         }
     }
@@ -108,7 +120,7 @@ impl OperationContext {
         Self {
             target: Some(target.into()),
             context: CallContext::default(),
-            is_suc: false,
+            result: OperationResult::Fail,
             exit_log: false,
         }
     }
@@ -130,7 +142,10 @@ impl OperationContext {
         self.target = Some(target.into())
     }
     pub fn mark_suc(&mut self) {
-        self.is_suc = true;
+        self.result = OperationResult::Suc;
+    }
+    pub fn mark_cancel(&mut self) {
+        self.result = OperationResult::Cancel;
     }
 
     /// 格式化上下文信息，用于日志输出
@@ -179,7 +194,7 @@ impl From<String> for OperationContext {
         Self {
             target: None,
             context: CallContext::from(("key", value.to_string())),
-            is_suc: false,
+            result: OperationResult::Fail,
             exit_log: false,
         }
     }
@@ -190,7 +205,7 @@ impl From<&PathBuf> for OperationContext {
         Self {
             target: None,
             context: CallContext::from(("path", format!("{}", value.display()))),
-            is_suc: false,
+            result: OperationResult::Fail,
             exit_log: false,
         }
     }
@@ -201,7 +216,7 @@ impl From<&Path> for OperationContext {
         Self {
             target: None,
             context: CallContext::from(("path", format!("{}", value.display()))),
-            is_suc: false,
+            result: OperationResult::Fail,
             exit_log: false,
         }
     }
@@ -212,7 +227,7 @@ impl From<&str> for OperationContext {
         Self {
             target: None,
             context: CallContext::from(("key", value.to_string())),
-            is_suc: false,
+            result: OperationResult::Fail,
             exit_log: false,
         }
     }
@@ -223,7 +238,7 @@ impl From<(&str, &str)> for OperationContext {
         Self {
             target: None,
             context: CallContext::from((value.0, value.1)),
-            is_suc: false,
+            result: OperationResult::Fail,
             exit_log: false,
         }
     }
@@ -234,7 +249,7 @@ impl From<(&str, String)> for OperationContext {
         Self {
             target: None,
             context: CallContext::from((value.0, value.1)),
-            is_suc: false,
+            result: OperationResult::Fail,
             exit_log: false,
         }
     }
@@ -260,7 +275,7 @@ where
                     format!("{}", value.1.as_ref().display()),
                 )],
             },
-            is_suc: false,
+            result: OperationResult::Fail,
             exit_log: false,
         }
     }
@@ -271,7 +286,7 @@ impl From<(String, String)> for OperationContext {
         Self {
             target: None,
             context: CallContext::from((value.0, value.1)),
-            is_suc: false,
+            result: OperationResult::Fail,
             exit_log: false,
         }
     }
@@ -670,10 +685,10 @@ mod tests {
     #[test]
     fn test_mark_suc() {
         let mut ctx = OperationContext::new();
-        assert!(!ctx.is_suc);
+        assert!(ctx.result == OperationResult::Fail);
 
         ctx.mark_suc();
-        assert!(ctx.is_suc);
+        assert!(ctx.result == OperationResult::Suc);
     }
 
     #[test]
@@ -817,7 +832,7 @@ mod tests {
         ctx.info("用户注册成功");
 
         // 验证上下文状态
-        assert!(ctx.is_suc);
+        assert!(ctx.result == OperationResult::Suc);
         assert!(ctx.exit_log);
         assert_eq!(*ctx.target(), Some("user_registration".to_string()));
         assert_eq!(ctx.context().items.len(), 3);
