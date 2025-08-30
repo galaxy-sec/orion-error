@@ -3,7 +3,7 @@ use std::{fmt::Display, ops::Deref};
 use crate::ErrorWith;
 
 use super::{
-    context::{ErrContext, WithContext},
+    context::{CallContext, OperationContext},
     domain::DomainReason,
     ContextAdd, ErrorCode,
 };
@@ -58,7 +58,7 @@ impl<T: DomainReason> StructError<T> {
         reason: T,
         detail: Option<String>,
         position: Option<String>,
-        context: Vec<WithContext>,
+        context: Vec<OperationContext>,
     ) -> Self {
         StructError {
             imp: Box::new(StructErrorImpl {
@@ -85,7 +85,7 @@ pub struct StructErrorImpl<T: DomainReason> {
     reason: T,
     detail: Option<String>,
     position: Option<String>,
-    context: Vec<WithContext>,
+    context: Vec<OperationContext>,
 }
 
 pub fn convert_error<R1, R2>(other: StructError<R1>) -> StructError<R2>
@@ -108,8 +108,8 @@ impl<T: DomainReason> StructError<T> {
         self.imp.position = Some(position.into());
         self
     }
-    pub fn with_context(mut self, context: ErrContext) -> Self {
-        self.imp.context.push(WithContext::from(context));
+    pub fn with_context(mut self, context: CallContext) -> Self {
+        self.imp.context.push(OperationContext::from(context));
         self
     }
 
@@ -148,13 +148,13 @@ impl<S1: Into<String>, S2: Into<String>, T: DomainReason> ContextAdd<(S1, S2)> f
 }
 */
 
-impl<T: DomainReason> ContextAdd<&WithContext> for StructError<T> {
-    fn add_context(&mut self, ctx: &WithContext) {
+impl<T: DomainReason> ContextAdd<&OperationContext> for StructError<T> {
+    fn add_context(&mut self, ctx: &OperationContext) {
         self.imp.context.push(ctx.clone());
     }
 }
-impl<T: DomainReason> ContextAdd<WithContext> for StructError<T> {
-    fn add_context(&mut self, ctx: WithContext) {
+impl<T: DomainReason> ContextAdd<OperationContext> for StructError<T> {
+    fn add_context(&mut self, ctx: OperationContext) {
         self.imp.context.push(ctx);
     }
 }
@@ -196,7 +196,7 @@ impl<T: std::fmt::Display + DomainReason + ErrorCode> Display for StructError<T>
 impl<T: DomainReason> ErrorWith for StructError<T> {
     fn want<S: Into<String>>(mut self, desc: S) -> Self {
         if self.context().is_empty() {
-            self.imp.context.push(WithContext::want(desc));
+            self.imp.context.push(OperationContext::want(desc));
         } else if let Some(x) = self.imp.context.last_mut() {
             x.with_want(desc.into())
         }
@@ -207,7 +207,7 @@ impl<T: DomainReason> ErrorWith for StructError<T> {
         self
     }
 
-    fn with<C: Into<WithContext>>(mut self, ctx: C) -> Self {
+    fn with<C: Into<OperationContext>>(mut self, ctx: C) -> Self {
         self.add_context(&ctx.into());
         self
     }
@@ -242,7 +242,7 @@ mod tests {
     #[test]
     fn test_struct_error_serialization() {
         // Create a context
-        let mut context = ErrContext::default();
+        let mut context = CallContext::default();
         context
             .items
             .push(("key1".to_string(), "value1".to_string()));
@@ -255,7 +255,7 @@ mod tests {
             TestDomainReason::TestError,
             Some("Detailed error description".to_string()),
             Some("file.rs:10:5".to_string()),
-            vec![WithContext::from(context)],
+            vec![OperationContext::from(context)],
         );
 
         // Serialize to JSON

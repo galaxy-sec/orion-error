@@ -6,8 +6,8 @@ mod tests {
     use thiserror::Error;
 
     use crate::{
-        core::convert_error, ErrorCode, ErrorWith, StructError, TestAssertWithMsg, UvsReason,
-        WithContext,
+        core::convert_error, ContextRecord, ErrorCode, ErrorWith, OperationContext, StructError,
+        TestAssertWithMsg, UvsReason,
     };
 
     // 测试用领域原因类型
@@ -63,8 +63,8 @@ mod tests {
 
     #[test]
     fn test_error_context() {
-        let mut ctx = WithContext::want("user_profile");
-        ctx.with("user_id", "12345");
+        let mut ctx = OperationContext::want("user_profile");
+        ctx.record("user_id", "12345");
 
         let err = StructError::from(TestDomainReason::Why1).with(ctx);
 
@@ -83,7 +83,7 @@ mod tests {
         let original = StructError::from(TestDomainReason::Why1)
             .with_detail("conversion test")
             .with_position("test.rs:1")
-            .with_context(WithContext::want("ctx").context().clone());
+            .with_context(OperationContext::want("ctx").context().clone());
 
         let converted: StructError<OtherDomainReason> = convert_error(original);
 
@@ -93,9 +93,9 @@ mod tests {
 
     #[test]
     fn test_error_display() {
-        let mut ctx = WithContext::new();
-        ctx.with("step", "initialization");
-        ctx.with("resource", "database");
+        let mut ctx = OperationContext::new();
+        ctx.record("step", "initialization");
+        ctx.record("resource", "database");
 
         let err = StructError::from(TestDomainReason::Uvs(UvsReason::core_conf(
             "config missing",

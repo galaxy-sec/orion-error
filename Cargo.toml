@@ -1,6 +1,6 @@
 [package]
 name = "orion-error"
-version = "0.4.1"
+version = "0.5.4"
 edition = "2021"
 authors = ["wukong <sec-wukong@outlook.com>"]
 description = "Struct Error for Large Project"
@@ -14,7 +14,10 @@ thiserror = "~2.0"
 derive-getters = "~0.5"
 serde = { version = "1.0", features = ["derive"] }
 derive_more = { version = "2.0", features = ["full"] }
+log = "~0.4"
+
 
 [dev-dependencies]
-parse-display-derive = "0.10.0"
+parse-display-derive = "0.9.0"
 serde_json = "1.0"
+env_logger = "0.11"

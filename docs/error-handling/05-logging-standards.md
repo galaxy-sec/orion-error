@@ -2,112 +2,96 @@
 
 ## 概述
 
-错误日志是错误处理系统的重要组成部分，标准化的日志格式和字段定义能够确保错误信息的一致性、可读性和可分析性。本规范定义了系统错误日志的标准格式、字段定义和最佳实践。
+错误日志是错误处理系统的重要组成部分，标准化的日志格式和字段定义能够确保错误信息的一致性、可读性和可分析性。本规范基于 `StructError<T>` 和 `UvsReason` 的实际实现，定义了系统错误日志的标准格式、字段定义和最佳实践。
 
-## 日志字段标准
+## 核心错误结构
 
-### 核心字段定义
-
-#### 基础信息字段
+### StructError 结构
 ```rust
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ErrorLog {
-    // ===== 基础标识信息 =====
-    pub trace_id: String,           // 全链路追踪ID
-    pub span_id: String,            // 当前调用段ID
-    pub request_id: String,         // 请求唯一标识
-    
-    // ===== 时间信息 =====
-    pub timestamp: DateTime<Utc>,   // 错误发生时间 (ISO 8601格式)
-    pub duration_ms: Option<u64>,   // 操作持续时间(毫秒)
-    
-    // ===== 错误分类信息 =====
-    pub error_code: String,         // 错误代码 (格式: DOMAIN.TYPE.SUBTYPE.CODE)
-    pub error_type: ErrorType,      // 错误类型枚举
-    pub severity: LogLevel,         // 日志级别
-    pub category: ErrorCategory,    // 错误分类
-    
-    // ===== 错误内容信息 =====
-    pub message: String,            // 用户友好的错误信息
-    pub detail: String,             // 技术详细信息
-    pub stack_trace: Option<String>, // 调用堆栈信息
-    pub root_cause: Option<String>, // 根本原因分析
-    
-    // ===== 上下文信息 =====
-    pub context: serde_json::Value, // 业务上下文数据
-    pub user_context: UserContext,  // 用户相关上下文
-    pub system_context: SystemContext, // 系统相关上下文
-    
-    // ===== 环境信息 =====
-    pub environment: String,        // 运行环境 (dev/test/prod)
-    pub service_name: String,       // 服务名称
-    pub service_version: String,    // 服务版本
-    pub host_name: String,          // 主机名称
-    pub pod_name: Option<String>,   // Kubernetes Pod名称
-    
-    // ===== 处理信息 =====
-    pub retry_count: Option<u32>,   // 重试次数
-    pub handled: bool,              // 是否已处理
-    pub recovery_action: Option<String>, // 恢复动作
+#[derive(Error, Debug, Clone, PartialEq, Getters)]
+pub struct StructError<T: DomainReason> {
+    imp: Box<StructErrorImpl<T>>,
+}
+
+#[derive(Error, Debug, Clone, PartialEq, Getters, Serialize)]
+pub struct StructErrorImpl<T: DomainReason> {
+    reason: T,                    // 错误原因
+    detail: Option<String>,       // 技术详细信息
+    position: Option<String>,     // 错误发生位置
+    context: Vec<OperationContext>, // 操作上下文列表
 }
 ```
 
-#### 错误类型枚举
+### UvsReason 错误分类
 ```rust
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum ErrorType {
-    // 业务错误
-    Validation,                     // 数据验证失败
-    BusinessRule,                   // 业务规则违反
-    InsufficientResources,          // 资源不足
-    NotFound,                       // 资源不存在
-    
-    // 系统错误
-    SystemInternal,                 // 系统内部错误
-    Timeout,                        // 超时错误
-    ResourceExhausted,              // 资源耗尽
-    
-    // 依赖错误
-    Database,                       // 数据库相关错误
-    ExternalService,                // 外部服务错误
-    Network,                        // 网络相关错误
-    
-    // 逻辑错误
-    Programming,                    // 编程逻辑错误
-    Configuration,                  // 配置错误
-    Security,                       // 安全相关错误
+#[derive(Debug, Error, PartialEq, Clone, Serialize)]
+pub enum UvsReason {
+    // === Business Layer Errors (100-199) ===
+    /// 输入验证错误 (格式错误、参数校验失败等)
+    #[error("validation error << {0}")]
+    ValidationError(ErrorPayload),
+
+    /// 业务逻辑规则违反 (业务规则违反、状态冲突等)
+    #[error("business logic error << {0}")]
+    BusinessError(ErrorPayload),
+
+    /// 资源不存在 (查询的资源不存在)
+    #[error("not found error << {0}")]
+    NotFoundError(ErrorPayload),
+
+    /// 权限和认证错误 (权限不足、认证失败)
+    #[error("permission error << {0}")]
+    PermissionError(ErrorPayload),
+
+    // === Infrastructure Layer Errors (200-299) ===
+    /// 数据库和数据处理错误 (数据库操作、数据格式错误)
+    #[error("data error << {0}")]
+    DataError(ErrorPayload, Option<usize>),
+
+    /// 文件系统和操作系统错误 (文件系统、操作系统错误)
+    #[error("system error << {0}")]
+    SystemError(ErrorPayload),
+
+    /// 网络连接和协议错误 (网络连接、HTTP请求错误)
+    #[error("network error << {0}")]
+    NetworkError(ErrorPayload),
+
+    /// 资源耗尽 (内存不足、磁盘空间不足等)
+    #[error("resource error << {0}")]
+    ResourceError(ErrorPayload),
+
+    /// 操作超时 (操作超时)
+    #[error("timeout error << {0}")]
+    TimeoutError(ErrorPayload),
+
+    // === Configuration & External Layer Errors (300-399) ===
+    /// 配置相关错误
+    #[error("configuration error << {0}")]
+    ConfigError(ConfErrReason),
+
+    /// 第三方服务错误
+    #[error("external service error << {0}")]
+    ExternalError(ErrorPayload),
+
+    /// 逻辑错误
+    #[error("BUG :logic error << {0}")]
+    LogicError(ErrorPayload),
 }
 ```
 
-#### 错误分类枚举
+### OperationContext 上下文结构
 ```rust
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum ErrorCategory {
-    // 按影响范围分类
-    UserFacing,                     // 面向用户的错误
-    Internal,                       // 内部系统错误
-    Dependency,                     // 依赖服务错误
-    
-    // 按处理方式分类
-    Recoverable,                    // 可恢复错误
-    NonRecoverable,                 // 不可恢复错误
-    
-    // 按严重程度分类
-    Critical,                       // 严重错误
-    Major,                          // 主要错误
-    Minor,                          // 次要错误
+#[derive(Debug, Clone, Getters, Default, Serialize, Deserialize, PartialEq)]
+pub struct OperationContext {
+    target: Option<String>,    // 操作目标
+    context: CallContext,      // 调用上下文
+    is_suc: bool,             // 是否成功
+    exit_log: bool,           // 是否退出时记录日志
 }
-```
 
-#### 日志级别枚举
-```rust
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum LogLevel {
-    Error,                          // 错误级别，需要立即处理
-    Warn,                           // 警告级别，需要注意
-    Info,                           // 信息级别，正常流程信息
-    Debug,                          // 调试级别，开发调试信息
-    Trace,                          // 追踪级别，详细执行信息
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct CallContext {
+    items: Vec<(String, String)>, // 上下文键值对
 }
 ```
 
@@ -234,151 +218,217 @@ system: {\"memory_usage\":104857600,\"cpu_usage\":25.5}
 2024-01-15T10:30:45.123Z ERROR order-service trace_id=abc123-def456-ghi789 error_code=ORDER.BUSINESS.INSUFFICIENT_BALANCE message=订单创建失败：余额不足 user_id=user_123
 ```
 
+### 错误处理策略
+
+#### ErrStrategy 枚举
+```rust
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum ErrStrategy {
+    // === 基础策略 ===
+    Ignore,                         // 忽略错误
+    Log,                            // 仅记录日志
+    Panic,                          // 触发panic
+    
+    // === 重试策略 ===
+    Retry(RetryConfig),             // 重试策略
+    RetryWithBackoff(RetryConfig),  // 带退避的重试策略
+    
+    // === 降级策略 ===
+    Degrade(DegradeConfig),         // 降级策略
+    Fallback(FallbackConfig),       // 回退策略
+    
+    // === 熔断策略 ===
+    CircuitBreaker(CircuitConfig),  // 熔断策略
+    
+    // === 自定义策略 ===
+    Custom(Box<dyn Fn(&StructError<UvsReason>) -> Result<(), StructError<UvsReason>>>),
+}
+```
+
+### 日志记录标准
+
+#### StructError 日志格式
+
+基于StructError结构体，我们定义了以下日志记录标准：
+
+```rust
+impl<T: DomainReason> Display for StructError<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "\n{}\n", self.reason)?;
+        if let Some(pos) = &self.position {
+            write!(f, "  position: {}\n", pos)?;
+        }
+        if let Some(detail) = &self.detail {
+            write!(f, "  detail: {}\n", detail)?;
+        }
+        if let Some(ctx) = &self.context {
+            write!(f, "  context: {}\n", ctx)?;
+        }
+        Ok(())
+    }
+}
+```
+
+#### OperationContext 日志方法
+
+OperationContext提供了多种日志记录方法：
+
+```rust
+impl OperationContext {
+    // 记录信息级别日志
+    pub fn info(&self, msg: &str) {
+        if self.exit_log {
+            info!("{}: {}", self, msg);
+        }
+    }
+    
+    // 记录调试级别日志
+    pub fn debug(&self, msg: &str) {
+        if self.exit_log {
+            debug!("{}: {}", self, msg);
+        }
+    }
+    
+    // 记录警告级别日志
+    pub fn warn(&self, msg: &str) {
+        if self.exit_log {
+            warn!("{}: {}", self, msg);
+        }
+    }
+    
+    // 记录错误级别日志
+    pub fn error(&self, msg: &str) {
+        if self.exit_log {
+            error!("{}: {}", self, msg);
+        }
+    }
+}
+```
+
 ## 日志级别使用指南
 
-### ERROR 级别
+### 错误级别 (Error)
+
 **使用场景：**
-- 系统无法继续执行的严重错误
-- 业务流程完全失败的错误
-- 数据一致性问题的错误
-- 安全相关的严重错误
+- 系统无法继续运行的严重错误
+- 数据丢失或损坏
+- 安全漏洞
+- 关键业务流程失败
 
 **示例：**
 ```rust
-// 数据库连接失败，无法继续处理
-log::error!(
-    error_code = "DATABASE.CONNECTION.FAILED",
-    trace_id = %trace_id,
-    service = "order-service",
-    "无法连接到数据库，服务不可用"
-);
-
-// 支付处理失败，影响核心业务
-log::error!(
-    error_code = "PAYMENT.PROCESSING.FAILED",
-    trace_id = %trace_id,
-    order_id = %order_id,
-    "支付处理失败，订单创建中止"
-);
+// 数据库连接失败
+let result = database_connection.execute(query);
+match result {
+    Ok(_) => {},
+    Err(e) => {
+        let ctx = OperationContext::default()
+            .with_target("database_connection")
+            .with("query", query.to_string());
+        ctx.error(&format!("Database connection failed: {}", e));
+        return Err(StructError::new(
+            UvsReason::DataError(ErrorPayload::new("database connection failed"), None),
+            Some("database_connection".to_string()),
+        ));
+    }
+}
 ```
 
-### WARN 级别
+### 警告级别 (Warn)
+
 **使用场景：**
-- 系统可以继续执行但需要注意的问题
-- 性能降级的情况
-- 即将达到资源限制的警告
-- 业务规则接近边界的情况
+- 可能导致问题的异常情况
+- 降级服务
+- 性能问题
+- 配置问题
 
 **示例：**
 ```rust
-// 缓存命中率低，可能影响性能
-log::warn!(
-    error_code = "CACHE.LOW_HIT_RATE",
-    trace_id = %trace_id,
-    cache_name = "user_cache",
-    hit_rate = 0.45,
-    "缓存命中率过低，建议检查缓存策略"
-);
+// 缓存命中率低
+if cache_hit_rate < 0.5 {
+    let ctx = OperationContext::default()
+        .with_target("cache_service")
+        .with("hit_rate", cache_hit_rate.to_string());
+    ctx.warn(&format!("Low cache hit rate: {}", cache_hit_rate));
+}
 
-// 数据库连接池接近满载
-log::warn!(
-    error_code = "DATABASE.POOL.HIGH_USAGE",
-    trace_id = %trace_id,
-    pool_usage = 0.85,
-    max_connections = 100,
-    "数据库连接池使用率过高"
-);
+// 降级服务
+if primary_service.is_unavailable() {
+    let ctx = OperationContext::default()
+        .with_target("service_fallback")
+        .with("primary_status", "unavailable".to_string());
+    ctx.warn("Primary service unavailable, using fallback");
+    use_fallback_service();
+}
 ```
 
-### INFO 级别
+### 信息级别 (Info)
+
 **使用场景：**
-- 正常业务流程的重要节点
-- 系统状态变更
-- 关键操作的成功执行
-- 业务规则处理的决策点
+- 关键业务流程开始/结束
+- 重要的状态变更
+- 用户操作
+- 系统启动/关闭
 
 **示例：**
 ```rust
-// 订单成功创建
-log::info!(
-    error_code = "ORDER.CREATED",
-    trace_id = %trace_id,
-    order_id = %order_id,
-    user_id = %user_id,
-    amount = %amount,
-    "订单创建成功"
-);
+// 用户登录
+let ctx = OperationContext::default()
+    .with_target("user_auth")
+    .with("user_id", user_id.to_string())
+    .with("ip", ip_address.to_string());
+ctx.info(&format!("User logged in: user_id={}, ip={}", user_id, ip_address));
 
-// 用户登录成功
-log::info!(
-    error_code = "USER.LOGIN.SUCCESS",
-    trace_id = %trace_id,
-    user_id = %user_id,
-    client_ip = %client_ip,
-    "用户登录成功"
-);
+// 订单创建
+let ctx = OperationContext::default()
+    .with_target("order_service")
+    .with("order_id", order_id.to_string())
+    .with("amount", amount.to_string());
+ctx.info(&format!("Order created: order_id={}, amount={}", order_id, amount));
 ```
 
-### DEBUG 级别
+### 调试级别 (Debug)
+
 **使用场景：**
-- 详细的处理过程信息
+- 函数调用跟踪
 - 中间计算结果
-- 条件分支的执行路径
-- 数据处理步骤
+- 条件分支执行
+- 开发调试信息
 
 **示例：**
 ```rust
-// 数据验证过程
-log::debug!(
-    error_code = "VALIDATION.PROCESSING",
-    trace_id = %trace_id,
-    field = "email",
-    value = %email,
-    validation_result = "valid",
-    "字段验证完成"
-);
+// 函数调用跟踪
+let ctx = OperationContext::default()
+    .with_target("request_handler")
+    .with("method", method.to_string())
+    .with("path", path.to_string());
+debug!("Processing request: method={}, path={}", method, path);
 
-// 数据库查询详情
-log::debug!(
-    error_code = "DATABASE.QUERY.EXECUTED",
-    trace_id = %trace_id,
-    query = %query_sql,
-    execution_time_ms = 15,
-    rows_affected = 1,
-    "数据库查询执行完成"
-);
+// 中间计算结果
+let ctx = OperationContext::default()
+    .with_target("calculation_service")
+    .with("step", "intermediate_result".to_string());
+debug!("Calculated result: {}", intermediate_result);
 ```
 
-### TRACE 级别
-**使用场景：**
-- 函数调用的详细轨迹
-- 复杂算法的执行步骤
-- 网络请求的完整生命周期
-- 并发操作的时序信息
+## 日志记录最佳实践
 
-**示例：**
+### 1. 使用OperationContext进行结构化日志
+
+使用OperationContext提供结构化的日志记录：
+
 ```rust
-// 函数调用轨迹
-log::trace!(
-    error_code = "FUNCTION.CALL.ENTER",
-    trace_id = %trace_id,
-    function = "process_order",
-    parameters = %serde_json::to_string(&params).unwrap_or_default(),
-    "进入函数处理"
-);
+// 好的做法
+let ctx = OperationContext::default()
+    .with_target("payment_service")
+    .with("user_id", user_id.to_string())
+    .with("order_id", order_id.to_string())
+    .with("amount", amount.to_string())
+    .with("error_code", "PAYMENT_FAILED".to_string());
+ctx.error("Payment processing failed");
 
-// 网络请求详情
-log::trace!(
-    error_code = "HTTP.REQUEST.COMPLETE",
-    trace_id = %trace_id,
-    method = "POST",
-    url = %url,
-    request_size = 256,
-    response_size = 1024,
-    duration_ms = 45,
-    status_code = 200,
-    "HTTP请求完成"
-);
+// 避免的做法
+error!("Payment failed for user {} with order {} amount {}", user_id, order_id, amount);
 ```
 
 ## 结构化日志实现
@@ -871,157 +921,160 @@ pub fn sampled_log_info(
 }
 ```
 
-## 最佳实践
+### 2. 结合StructError进行错误分类
 
-### 日志记录最佳实践
+根据UvsReason类型选择合适的日志级别和处理策略：
 
-#### 1. 结构化优先
 ```rust
-// 好的做法：结构化日志
-log_error!(
-    error_code = "ORDER.VALIDATION.FAILED",
-    trace_id = %trace_id,
-    order_id = %order_id,
-    field = "email",
-    provided_value = %invalid_email,
-    expected_format = "user@domain.com",
-    "订单验证失败：邮箱格式错误"
-);
-
-// 避免：非结构化日志
-log::error!("订单验证失败，订单ID: {}, 邮箱: {}, 格式错误", order_id, invalid_email);
+fn handle_error_with_context(error: StructError<UvsReason>, ctx: &OperationContext) {
+    match error.reason {
+        // 严重错误 - Error级别
+        UvsReason::DataError(_, _) | UvsReason::SystemError(_) => {
+            ctx.error(&format!("Critical error occurred: {}", error));
+            // 可能需要触发警报或通知
+        }
+        
+        // 业务错误 - Warn级别
+        UvsReason::BusinessError(_) | UvsReason::ValidationError(_) => {
+            ctx.warn(&format!("Business error occurred: {}", error));
+            // 可能需要记录到业务监控系统
+        }
+        
+        // 网络错误 - Warn级别，可能需要重试
+        UvsReason::NetworkError(_) => {
+            ctx.warn(&format!("Network error occurred: {}", error));
+            // 可能需要重试机制
+        }
+        
+        // 配置错误 - Info级别
+        UvsReason::ConfigError(_) => {
+            ctx.info(&format!("Configuration error occurred: {}", error));
+            // 可能需要配置更新
+        }
+    }
+}
 ```
 
-#### 2. 上下文完整性
+### 3. 错误处理策略与日志结合
+
+将ErrStrategy与日志记录结合使用：
+
 ```rust
-pub fn process_payment(ctx: &ErrorContext, payment: &Payment) -> Result<PaymentResult, Error> {
-    let span = ctx.create_span("process_payment");
-    let _guard = span.enter();
-    
-    log_info!(
-        error_code = "PAYMENT.PROCESS.START",
-        payment_id = %payment.id,
-        amount = %payment.amount,
-        currency = %payment.currency,
-        user_id = %payment.user_id,
-        "开始处理支付"
-    );
-    
-    match payment_gateway.process(payment).await {
+fn process_with_strategy<T>(
+    operation: impl Fn() -> Result<T, StructError<UvsReason>>,
+    strategy: ErrStrategy,
+    ctx: &OperationContext
+) -> Result<T, StructError<UvsReason>> {
+    match operation() {
         Ok(result) => {
-            log_info!(
-                error_code = "PAYMENT.PROCESS.SUCCESS",
-                payment_id = %payment.id,
-                transaction_id = %result.transaction_id,
-                processing_time_ms = result.processing_time_ms,
-                "支付处理成功"
-            );
+            ctx.info("Operation completed successfully");
             Ok(result)
         }
-        Err(e) => {
-            log_error!(
-                error_code = "PAYMENT.PROCESS.FAILED",
-                payment_id = %payment.id,
-                error_type = %e.error_type(),
-                error_detail = %e,
-                retry_count = %e.retry_count(),
-                recovery_action = "建议用户稍后重试或联系客服",
-                "支付处理失败"
-            );
-            Err(e)
+        Err(error) => {
+            match strategy {
+                ErrStrategy::Log => {
+                    ctx.error(&format!("Operation failed: {}", error));
+                    Err(error)
+                }
+                ErrStrategy::Retry(config) => {
+                    ctx.warn(&format!("Operation failed, retrying: {}", error));
+                    // 实现重试逻辑
+                    retry_operation(operation, config, ctx)
+                }
+                ErrStrategy::Degrade(degrade_config) => {
+                    ctx.warn(&format!("Operation failed, degrading: {}", error));
+                    // 实现降级逻辑
+                    degrade_operation(operation, degrade_config, ctx)
+                }
+                ErrStrategy::Ignore => {
+                    ctx.debug(&format!("Operation failed, ignoring: {}", error));
+                    Err(error)
+                }
+                _ => {
+                    ctx.error(&format!("Operation failed with unhandled strategy: {}", error));
+                    Err(error)
+                }
+            }
         }
     }
 }
 ```
 
-#### 3. 性能感知
-```rust
-use std::time::Instant;
+### 4. 上下文链式调用
 
-pub fn handle_request(ctx: &ErrorContext, request: &Request) -> Result<Response, Error> {
-    let start_time = Instant::now();
-    let span = ctx.create_span("handle_request");
-    let _guard = span.enter();
+使用OperationContext的链式调用构建丰富的上下文信息：
+
+```rust
+fn process_order(order: &Order) -> Result<(), StructError<UvsReason>> {
+    let ctx = OperationContext::default()
+        .with_target("order_processing")
+        .with("order_id", order.id.to_string())
+        .with("customer_id", order.customer_id.to_string())
+        .with("amount", order.amount.to_string())
+        .with_path("/api/orders/process")
+        .with_want("process_order");
     
-    log_info!(
-        error_code = "REQUEST.RECEIVED",
-        request_id = %request.id,
-        method = %request.method,
-        path = %request.path,
-        "接收到请求"
-    );
+    ctx.info("Starting order processing");
     
-    let result = process_request(request).await;
-    
-    let duration_ms = start_time.elapsed().as_millis() as u64;
-    
-    match &result {
-        Ok(response) => {
-            log_info!(
-                error_code = "REQUEST.COMPLETED",
-                request_id = %request.id,
-                status_code = %response.status_code,
-                duration_ms = duration_ms,
-                response_size = %response.size,
-                "请求处理完成"
-            );
-        }
+    match validate_order(order) {
+        Ok(_) => ctx.debug("Order validation passed"),
         Err(e) => {
-            log_error!(
-                error_code = "REQUEST.FAILED",
-                request_id = %request.id,
-                error_type = %e.error_type(),
-                duration_ms = duration_ms,
-                "请求处理失败"
-            );
+            ctx.warn(&format!("Order validation failed: {}", e));
+            return Err(e);
         }
     }
     
-    result
+    match process_payment(order) {
+        Ok(_) => ctx.info("Payment processed successfully"),
+        Err(e) => {
+            ctx.error(&format!("Payment processing failed: {}", e));
+            return Err(e);
+        }
+    }
+    
+    ctx.info("Order processing completed successfully");
+    Ok(())
 }
 ```
 
-#### 4. 敏感信息处理
+### 5. 性能考虑与敏感信息保护
+
+避免在生产环境中记录过多的调试信息，并保护敏感数据：
+
 ```rust
-pub fn log_user_action(ctx: &ErrorContext, user: &User, action: &str) {
-    // 屏蔽敏感信息
-    let masked_phone = mask_phone_number(&user.phone);
-    let masked_email = mask_email(&user.email);
-    
-    log_info!(
-        error_code = "USER.ACTION",
-        trace_id = %ctx.trace_id,
-        user_id = %user.id,
-        masked_phone = %masked_phone,
-        masked_email = %masked_email,
-        action = action,
-        timestamp = %Utc::now(),
-        "用户操作记录"
-    );
+// 使用条件编译
+#[cfg(debug_assertions)]
+{
+    let debug_ctx = OperationContext::default()
+        .with_target("debug_info")
+        .with("complex_data", format!("{:?}", complex_data));
+    debug_ctx.debug("Detailed debug information");
 }
 
-fn mask_phone_number(phone: &str) -> String {
-    if phone.len() >= 8 {
-        format!("{}****{}", &phone[..3], &phone[phone.len()-4..])
-    } else {
-        "****".to_string()
-    }
+// 使用日志级别控制
+if log::log_enabled!(log::Level::Debug) {
+    let debug_ctx = OperationContext::default()
+        .with_target("expensive_computation")
+        .with("result", expensive_computation().to_string());
+    debug_ctx.debug("Expensive to compute debug info");
 }
 
-fn mask_email(email: &str) -> String {
-    if let Some(at_pos) = email.find('@') {
-        let username = &email[..at_pos];
-        let domain = &email[at_pos..];
-        
-        if username.len() > 2 {
-            format!("{}**{}", &username[..1], domain)
-        } else {
-            format!("**{}", domain)
-        }
-    } else {
-        "****".to_string()
-    }
-}
+// 敏感信息保护
+let ctx = OperationContext::default()
+    .with_target("user_auth")
+    .with("user_id", user_id.to_string())
+    .with("login_status", "attempt".to_string());
+ctx.info("User login attempt");
+
+// 避免记录密码等敏感信息
+// ctx.with("password", password.to_string()); // 错误的做法
+
+// 使用脱敏
+let masked_card = format!("****-****-****-{}", &card_number[card_number.len()-4..]);
+let secure_ctx = OperationContext::default()
+    .with_target("payment_processing")
+    .with("card_number", masked_card);
+secure_ctx.info("Credit card processed");
 ```
 
 ### 日志配置最佳实践
