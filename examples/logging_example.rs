@@ -1,7 +1,7 @@
 //! 展示WithContext日志记录功能的示例
 //! 此示例展示了如何在无错误情况下使用WithContext记录有价值的上下文信息
 
-use orion_error::OperationContext;
+use orion_error::{ContextRecord, OperationContext};
 
 fn main() {
     // 初始化日志系统（实际项目中需要在main函数开始处初始化）
@@ -20,10 +20,10 @@ fn main() {
 
 fn process_order(order_id: &str, amount: f64, customer_id: &str) {
     // 创建WithContext对象来收集上下文信息
-    let mut ctx = OperationContext::want("process_order").with_exit_log();
-    ctx.with("order_id", order_id);
-    ctx.with("amount", amount.to_string());
-    ctx.with("customer_id", customer_id);
+    let mut ctx = OperationContext::want("process_order").with_auto_log();
+    ctx.record("order_id", order_id);
+    ctx.record("amount", amount.to_string());
+    ctx.record("customer_id", customer_id);
 
     // 在关键步骤记录日志（即使没有错误）
     ctx.info("开始处理订单");
@@ -31,7 +31,7 @@ fn process_order(order_id: &str, amount: f64, customer_id: &str) {
     // 模拟订单处理逻辑
     let validation_result = validate_order(amount);
 
-    ctx.with("validation_result", validation_result.to_string());
+    ctx.record("validation_result", validation_result.to_string());
     ctx.debug("订单验证完成");
 
     if validation_result {
@@ -56,16 +56,16 @@ fn validate_order(amount: f64) -> bool {
 fn successful_operation() {
     // 展示在成功操作中如何记录有价值的上下文信息
     let mut ctx = OperationContext::want("data_processing");
-    ctx.with("batch_size", "1000");
-    ctx.with("processor", "worker_1");
-    ctx.with("start_time", "2024-01-01T10:00:00Z");
+    ctx.record("batch_size", "1000");
+    ctx.record("processor", "worker_1");
+    ctx.record("start_time", "2024-01-01T10:00:00Z");
 
     // 记录处理开始
     ctx.info("开始数据处理");
 
     // 模拟数据处理
     for i in 0..5 {
-        ctx.with("current_item", i.to_string());
+        ctx.record("current_item", i.to_string());
 
         ctx.debug("处理数据项");
 
@@ -74,8 +74,8 @@ fn successful_operation() {
     }
 
     // 记录处理完成
-    ctx.with("end_time", "2024-01-01T10:05:00Z");
-    ctx.with("items_processed", "5");
+    ctx.record("end_time", "2024-01-01T10:05:00Z");
+    ctx.record("items_processed", "5");
 
     ctx.info("数据处理完成");
 
