@@ -1,5 +1,4 @@
 use serde::Serialize;
-use std::fmt::Display;
 use thiserror::Error;
 
 use super::ErrorCode;
@@ -33,40 +32,40 @@ pub enum UvsReason {
     // === Business Layer Errors (100-199) ===
     /// Input validation errors (格式错误、参数校验失败等)
     #[error("validation error << {0}")]
-    ValidationError(ErrorPayload),
+    ValidationError(String),
 
     /// Business logic rule violations (业务规则违反、状态冲突等)
     #[error("business logic error << {0}")]
-    BusinessError(ErrorPayload),
+    BusinessError(String),
 
     /// Resource not found (查询的资源不存在)
     #[error("not found error << {0}")]
-    NotFoundError(ErrorPayload),
+    NotFoundError(String),
 
     /// Permission and authorization errors (权限不足、认证失败)
     #[error("permission error << {0}")]
-    PermissionError(ErrorPayload),
+    PermissionError(String),
 
     // === Infrastructure Layer Errors (200-299) ===
     /// Database and data processing errors (数据库操作、数据格式错误)
     #[error("data error << {0}")]
-    DataError(ErrorPayload, Option<usize>),
+    DataError(String, Option<usize>),
 
     /// File system and OS-level errors (文件系统、操作系统错误)
     #[error("system error << {0}")]
-    SystemError(ErrorPayload),
+    SystemError(String),
 
     /// Network connectivity and protocol errors (网络连接、HTTP请求错误)
     #[error("network error << {0}")]
-    NetworkError(ErrorPayload),
+    NetworkError(String),
 
     /// Resource exhaustion (内存不足、磁盘空间不足等)
     #[error("resource error << {0}")]
-    ResourceError(ErrorPayload),
+    ResourceError(String),
 
     /// Operation timeouts (操作超时)
     #[error("timeout error << {0}")]
-    TimeoutError(ErrorPayload),
+    TimeoutError(String),
 
     // === Configuration & External Layer Errors (300-399) ===
     /// Configuration-related errors (配置相关错误)
@@ -75,11 +74,11 @@ pub enum UvsReason {
 
     /// Third-party service errors (第三方服务错误)
     #[error("external service error << {0}")]
-    ExternalError(ErrorPayload),
+    ExternalError(String),
 
     /// Third-party service errors (第三方服务错误)
     #[error("BUG :logic error << {0}")]
-    LogicError(ErrorPayload),
+    LogicError(String),
 }
 
 impl UvsReason {
@@ -98,48 +97,48 @@ impl UvsReason {
 
     // === Business Layer Constructors ===
     pub fn validation_error<S: Into<String>>(msg: S) -> Self {
-        Self::ValidationError(ErrorPayload::new(msg))
+        Self::ValidationError(msg.into())
     }
 
     pub fn business_error<S: Into<String>>(msg: S) -> Self {
-        Self::BusinessError(ErrorPayload::new(msg))
+        Self::BusinessError(msg.into())
     }
 
     pub fn not_found_error<S: Into<String>>(msg: S) -> Self {
-        Self::NotFoundError(ErrorPayload::new(msg))
+        Self::NotFoundError(msg.into())
     }
 
     pub fn permission_error<S: Into<String>>(msg: S) -> Self {
-        Self::PermissionError(ErrorPayload::new(msg))
+        Self::PermissionError(msg.into())
     }
 
     // === Infrastructure Layer Constructors ===
     pub fn data_error<S: Into<String>>(msg: S, pos: Option<usize>) -> Self {
-        Self::DataError(ErrorPayload::new(msg), pos)
+        Self::DataError(msg.into(), pos)
     }
 
     pub fn system_error<S: Into<String>>(msg: S) -> Self {
-        Self::SystemError(ErrorPayload::new(msg))
+        Self::SystemError(msg.into())
     }
 
     pub fn network_error<S: Into<String>>(msg: S) -> Self {
-        Self::NetworkError(ErrorPayload::new(msg))
+        Self::NetworkError(msg.into())
     }
 
     pub fn resource_error<S: Into<String>>(msg: S) -> Self {
-        Self::ResourceError(ErrorPayload::new(msg))
+        Self::ResourceError(msg.into())
     }
 
     pub fn timeout_error<S: Into<String>>(msg: S) -> Self {
-        Self::TimeoutError(ErrorPayload::new(msg))
+        Self::TimeoutError(msg.into())
     }
 
     // === External Layer Constructors ===
     pub fn external_error<S: Into<String>>(msg: S) -> Self {
-        Self::ExternalError(ErrorPayload::new(msg))
+        Self::ExternalError(msg.into())
     }
     pub fn logic_error<S: Into<String>>(msg: S) -> Self {
-        Self::LogicError(ErrorPayload::new(msg))
+        Self::LogicError(msg.into())
     }
 }
 
@@ -191,43 +190,6 @@ pub trait UvsPermissionFrom<S> {
 
 pub trait UvsExternalFrom<S> {
     fn from_external(info: S) -> Self;
-}
-
-/// Strongly typed error payload wrapper
-/// 强类型错误负载包装
-#[derive(Debug, PartialEq, Clone, Serialize)]
-pub struct ErrorPayload(String);
-
-impl ErrorPayload {
-    pub fn new<S: Into<String>>(s: S) -> Self {
-        Self(s.into())
-    }
-
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-
-    pub fn into_inner(self) -> String {
-        self.0
-    }
-}
-
-impl Display for ErrorPayload {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self.0)
-    }
-}
-
-impl From<String> for ErrorPayload {
-    fn from(value: String) -> Self {
-        Self::new(value)
-    }
-}
-
-impl From<&str> for ErrorPayload {
-    fn from(value: &str) -> Self {
-        Self::new(value.to_string())
-    }
 }
 
 // === Trait Implementations ===
