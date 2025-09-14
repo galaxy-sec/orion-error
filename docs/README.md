@@ -178,3 +178,7 @@ cargo doc --no-deps --open
     <strong>祝您使用愉快！</strong><br>
     <em>— Orion-Error 团队</em>
 </div>
+### 🔍 比较与集成
+
+#### [与 thiserror 的差异与协作指南](thiserror-comparison.md)
+详细对比 `thiserror` 与本库的定位与能力，提供组合使用示例与落地建议。

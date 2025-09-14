@@ -104,16 +104,19 @@ where
 impl<T: DomainReason> StructError<T> {
     /// 使用示例
     ///self.with_position(location!());
+    #[must_use]
     pub fn with_position(mut self, position: impl Into<String>) -> Self {
         self.imp.position = Some(position.into());
         self
     }
+    #[must_use]
     pub fn with_context(mut self, context: CallContext) -> Self {
         self.imp.context.push(OperationContext::from(context));
         self
     }
 
     // 提供修改方法
+    #[must_use]
     pub fn with_detail(mut self, detail: impl Into<String>) -> Self {
         self.imp.detail = Some(detail.into());
         self
@@ -194,6 +197,7 @@ impl<T: std::fmt::Display + DomainReason + ErrorCode> Display for StructError<T>
 }
 
 impl<T: DomainReason> ErrorWith for StructError<T> {
+    #[must_use]
     fn want<S: Into<String>>(mut self, desc: S) -> Self {
         if self.context().is_empty() {
             self.imp.context.push(OperationContext::want(desc));
@@ -202,11 +206,13 @@ impl<T: DomainReason> ErrorWith for StructError<T> {
         }
         self
     }
+    #[must_use]
     fn position<S: Into<String>>(mut self, pos: S) -> Self {
         self.imp.position = Some(pos.into());
         self
     }
 
+    #[must_use]
     fn with<C: Into<OperationContext>>(mut self, ctx: C) -> Self {
         self.add_context(&ctx.into());
         self

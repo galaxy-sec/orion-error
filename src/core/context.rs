@@ -1,11 +1,11 @@
 use derive_getters::Getters;
+#[cfg(feature = "log")]
 use log::{debug, error, info, trace, warn};
 use serde::{Deserialize, Serialize};
 use std::{
     fmt::Display,
     path::{Path, PathBuf},
 };
-use thiserror::Error;
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub enum OperationResult {
     Suc,
@@ -14,7 +14,8 @@ pub enum OperationResult {
     Cancel,
 }
 
-const DEFAULT_MOD_PATH: &str = "...";
+// 使用编译期模块路径作为默认日志 target，以提升可读性
+const DEFAULT_MOD_PATH: &str = module_path!();
 #[derive(Debug, Clone, Getters, Serialize, Deserialize, PartialEq)]
 pub struct OperationContext {
     context: CallContext,
@@ -50,15 +51,16 @@ impl From<CallContext> for OperationContext {
 impl Drop for OperationContext {
     fn drop(&mut self) {
         if self.exit_log {
+            #[cfg(feature = "log")]
             match self.result() {
                 OperationResult::Suc => {
-                    info!("suc! {}", self.format_context());
+                    info!(target: self.mod_path.as_str(), "suc! {}", self.format_context());
                 }
                 OperationResult::Fail => {
-                    error!("fail! {}", self.format_context());
+                    error!(target: self.mod_path.as_str(), "fail! {}", self.format_context());
                 }
                 OperationResult::Cancel => {
-                    warn!("cancel ! {}", self.format_context());
+                    warn!(target: self.mod_path.as_str(), "cancel! {}", self.format_context());
                 }
             }
         }
@@ -140,7 +142,7 @@ impl OperationContext {
             mod_path: DEFAULT_MOD_PATH.into(),
         }
     }
-    #[deprecated = "use with_auto_log"]
+    #[deprecated(since = "0.5.4", note = "use with_auto_log")]
     pub fn with_exit_log(mut self) -> Self {
         self.exit_log = true;
         self
@@ -153,12 +155,12 @@ impl OperationContext {
         self.mod_path = path.into();
         self
     }
-    #[deprecated = "use record"]
+    #[deprecated(since = "0.5.4", note = "use record")]
     pub fn with<S1: Into<String>, S2: Into<String>>(&mut self, key: S1, val: S2) {
         self.context.items.push((key.into(), val.into()));
     }
 
-    #[deprecated = "use record"]
+    #[deprecated(since = "0.5.4", note = "use record")]
     pub fn with_path<S1: Into<String>, S2: Into<PathBuf>>(&mut self, key: S1, val: S2) {
         self.context
             .items
@@ -167,6 +169,10 @@ impl OperationContext {
 
     pub fn with_want<S: Into<String>>(&mut self, target: S) {
         self.target = Some(target.into())
+    }
+    /// 别名：设置目标资源/操作名，与 `with_want` 等效
+    pub fn set_target<S: Into<String>>(&mut self, target: S) {
+        self.with_want(target)
     }
     pub fn mark_suc(&mut self) {
         self.result = OperationResult::Suc;
@@ -177,43 +183,60 @@ impl OperationContext {
 
     /// 格式化上下文信息，用于日志输出
     fn format_context(&self) -> String {
+        let target = self.target.clone().unwrap_or_default();
         if self.context.items.is_empty() {
-            self.target.clone().unwrap_or_default()
+            return target;
+        }
+        if target.is_empty() {
+            format!("{}", self.context)
         } else {
-            format!(
-                "{}: {}",
-                self.target.clone().unwrap_or_default(),
-                self.context
-            )
+            format!("{target}: {}", self.context)
         }
     }
 
     /// 记录日志信息，在无错误情况下也可以提供有价值的上下文信息
-    /// 注意：需要启用相应的日志特性才能使用这些方法
+    /// 注意：需要启用 `log` 特性
+    #[cfg(feature = "log")]
     pub fn info<S: AsRef<str>>(&self, message: S) {
-        // 使用log::info宏记录信息级别日志
-        info!("{}: {}", self.format_context(), message.as_ref());
+        info!(target: self.mod_path.as_str(), "{}: {}", self.format_context(), message.as_ref());
     }
+    #[cfg(not(feature = "log"))]
+    pub fn info<S: AsRef<str>>(&self, _message: S) {}
 
+    #[cfg(feature = "log")]
     pub fn debug<S: AsRef<str>>(&self, message: S) {
-        // 使用log::debug宏记录调试级别日志
-        debug!( target: self.mod_path.as_str(),"{}: {}", self.format_context(), message.as_ref());
+        debug!( target: self.mod_path.as_str(), "{}: {}", self.format_context(), message.as_ref());
     }
+    #[cfg(not(feature = "log"))]
+    pub fn debug<S: AsRef<str>>(&self, _message: S) {}
 
+    #[cfg(feature = "log")]
     pub fn warn<S: AsRef<str>>(&self, message: S) {
-        // 使用log::warn宏记录警告级别日志
-        warn!( target: self.mod_path.as_str(),"{}: {}", self.format_context(), message.as_ref());
+        warn!( target: self.mod_path.as_str(), "{}: {}", self.format_context(), message.as_ref());
     }
+    #[cfg(not(feature = "log"))]
+    pub fn warn<S: AsRef<str>>(&self, _message: S) {}
 
+    #[cfg(feature = "log")]
     pub fn error<S: AsRef<str>>(&self, message: S) {
-        // 使用log::error宏记录错误级别日志
-        error!(target: self.mod_path.as_str(),"{}: {}", self.format_context(), message.as_ref());
+        error!(target: self.mod_path.as_str(), "{}: {}", self.format_context(), message.as_ref());
     }
+    #[cfg(not(feature = "log"))]
+    pub fn error<S: AsRef<str>>(&self, _message: S) {}
 
+    #[cfg(feature = "log")]
     pub fn trace<S: AsRef<str>>(&self, message: S) {
-        // 使用log::trace宏记录跟踪级别日志
-        trace!(target: self.mod_path.as_str(),"{}: {}", self.format_context(), message.as_ref());
+        trace!( target: self.mod_path.as_str(), "{}: {}", self.format_context(), message.as_ref());
     }
+    #[cfg(not(feature = "log"))]
+    pub fn trace<S: AsRef<str>>(&self, _message: S) {}
+
+    /// 与文档示例一致的别名方法（调用上面的同名方法）
+    pub fn log_info<S: AsRef<str>>(&self, message: S) { self.info(message) }
+    pub fn log_debug<S: AsRef<str>>(&self, message: S) { self.debug(message) }
+    pub fn log_warn<S: AsRef<str>>(&self, message: S) { self.warn(message) }
+    pub fn log_error<S: AsRef<str>>(&self, message: S) { self.error(message) }
+    pub fn log_trace<S: AsRef<str>>(&self, message: S) { self.trace(message) }
 }
 
 impl From<String> for OperationContext {
@@ -333,7 +356,7 @@ impl From<&OperationContext> for OperationContext {
     }
 }
 
-#[derive(Default, Error, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct CallContext {
     pub items: Vec<(String, String)>,
 }
@@ -751,7 +774,7 @@ mod tests {
         ctx.record("key1", "value1");
 
         let formatted = ctx.format_context();
-        assert_eq!(formatted, ": \ncall context:\n\tkey1 : value1\n");
+        assert_eq!(formatted, "call context:\n\tkey1 : value1\n");
     }
 
     #[test]

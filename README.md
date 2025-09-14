@@ -81,6 +81,45 @@ db.query()
    .err_conv()?;
 ```
 
+## 与 thiserror 的差异与配合
+
+- 定位差异：`thiserror` 专注于“定义错误类型”的派生与格式化；本库专注“结构化错误治理”，提供统一分类（`UvsReason`）、错误码（`ErrorCode`）、上下文（`OperationContext`/`WithContext`）与转换策略（`ErrorOwe`/`ErrorConv`）。
+- 运行时语义：`thiserror` 不提供错误码、重试性或严重级别；本库内建 `error_code()`、`is_retryable()`、`is_high_severity()`、`category_name()`，便于监控与告警。
+- 上下文与链路：`thiserror` 不管理上下文；本库可在成功/失败路径记录目标与键值上下文，`with_auto_log()` 结合日志在 Drop 时输出。
+- 转换与传播：基于 `ErrorOwe` 将任意 `Result<T, E: Display>` 规范化为 `Result<T, StructError<R>>`，快速映射为业务/系统/网络/超时等分类。
+
+推荐组合用法：用 `thiserror` 定义领域错误，用本库统一分类与治理。
+
+```rust
+use derive_more::From;
+use thiserror::Error;
+use orion_error::{StructError, ErrorOwe, ErrorCode, UvsReason, DomainReason};
+
+#[derive(Debug, Error, From, serde::Serialize, PartialEq)]
+enum AppError {
+    #[error("{0}")]
+    Uvs(UvsReason), // 透传统一分类
+    #[error("parse failed")]
+    Parse,
+}
+
+impl ErrorCode for AppError {
+    fn error_code(&self) -> i32 {
+        match self { AppError::Uvs(r) => r.error_code(), AppError::Parse => 100 }
+    }
+}
+// 满足 From<UvsReason> + Display + PartialEq + Serialize，自动实现 DomainReason
+impl DomainReason for AppError {}
+
+fn handle() -> Result<(), StructError<AppError>> {
+    do_io().owe_sys()?;        // 映射为系统类错误
+    parse().owe_validation()?; // 映射为校验类错误
+    Ok(())
+}
+```
+
+更多内容与实践建议：参见 docs/thiserror-comparison.md。
+
 ## Advanced Features
 
 ### Error Composition
