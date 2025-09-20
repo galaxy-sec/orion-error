@@ -38,6 +38,10 @@ pub enum UvsReason {
     #[error("business logic error << {0}")]
     BusinessError(String),
 
+    /// Business logic rule violations (业务规则违反、状态冲突等)
+    #[error("run rule error << {0}")]
+    RunRuleError(String),
+
     /// Resource not found (查询的资源不存在)
     #[error("not found error << {0}")]
     NotFoundError(String),
@@ -102,6 +106,10 @@ impl UvsReason {
 
     pub fn business_error<S: Into<String>>(msg: S) -> Self {
         Self::BusinessError(msg.into())
+    }
+
+    pub fn rule_error<S: Into<String>>(msg: S) -> Self {
+        Self::RunRuleError(msg.into())
     }
 
     pub fn not_found_error<S: Into<String>>(msg: S) -> Self {
@@ -429,6 +437,7 @@ impl ErrorCode for UvsReason {
             UvsReason::NotFoundError(_) => 102,
             UvsReason::PermissionError(_) => 103,
             UvsReason::LogicError(_) => 104,
+            UvsReason::RunRuleError(_) => 105,
 
             // === Infrastructure Layer Errors (200-299) ===
             UvsReason::DataError(_, _) => 200,
@@ -461,6 +470,7 @@ impl UvsReason {
             // Business logic errors are generally not retryable
             UvsReason::ValidationError(_) => false,
             UvsReason::BusinessError(_) => false,
+            UvsReason::RunRuleError(_) => false,
             UvsReason::NotFoundError(_) => false,
             UvsReason::PermissionError(_) => false,
 
@@ -491,6 +501,7 @@ impl UvsReason {
         match self {
             UvsReason::ValidationError(_) => "validation",
             UvsReason::BusinessError(_) => "business",
+            UvsReason::RunRuleError(_) => "runrule",
             UvsReason::NotFoundError(_) => "not_found",
             UvsReason::PermissionError(_) => "permission",
             UvsReason::DataError(_, _) => "data",

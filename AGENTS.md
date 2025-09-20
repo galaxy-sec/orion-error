@@ -1,36 +1,34 @@
 # Repository Guidelines
 
-## 项目结构与模块组织
-- `src/`: 库代码。`core/`（error、reason、context、domain、universal）；`traits/` 为转换与助手；`lib.rs` 统一导出；`testcase.rs` 含测试辅助。
-- `tests/`: 集成测试（如 `tests/test_error_owe.rs`）。
-- `examples/`: 可运行示例（如 `order_case`、`logging_example`）。
-- `docs/`: 文档与设计说明（教程、错误分类、日志等）。
-- `.github/workflows/`: CI（fmt、clippy、tests、coverage、audit）。
-- `tasks/`: 任务记录与 TODO（非代码）。
+## Project Structure & Module Organization
+- `src/` hosts the library; `src/core/` defines shared error primitives (reason, context, domain, universal) and `src/traits/` holds conversion helpers.
+- `src/lib.rs` re-exports the public surface; `src/testcase.rs` bundles test utilities for integration tests.
+- `tests/` contains black-box scenarios such as `tests/test_error_owe.rs`; mirror real workflows when adding new cases.
+- `examples/` offers runnable demos (`order_case`, `logging_example`); keep them compiling for docs.
+- `docs/` stores tutorials and design notes; `.github/workflows/` runs fmt, clippy, tests, coverage, audit; `tasks/` is for roadmap items.
 
-## 构建、测试与本地开发
-- `cargo build`: 构建库。
-- `cargo test --all-features -- --test-threads=1`: 运行测试（与 CI 一致）。
-- `cargo fmt --all` / `cargo fmt --all -- --check`: 格式化 / 校验格式。
-- `cargo clippy --all-targets --all-features -- -D warnings`: Lint 并将告警视为错误。
-- 示例：`cargo run --example order_case`；日志特性：`cargo run --example logging_example --features log` 或 `--features tracing`。
-- 覆盖率（可选）：`cargo llvm-cov --all-features --workspace --html`。
+## Build, Test, and Development Commands
+- `cargo build` — compile the library with default features.
+- `cargo test --all-features -- --test-threads=1` — execute the full suite in the same mode as CI.
+- `cargo fmt --all` and `cargo fmt --all -- --check` — format code or verify formatting.
+- `cargo clippy --all-targets --all-features -- -D warnings` — lint with warnings treated as errors.
+- `cargo run --example order_case` and `cargo run --example logging_example --features log` — validate examples; swap `log` for `tracing` as needed.
 
-## 代码风格与命名规范
-- Rust 2021；遵循 rustfmt 默认；CI 要求 clippy 零告警。
-- 命名：模块/函数用 `snake_case`；类型/枚举/trait 用 `PascalCase`。
-- 倡导安全代码；库中避免 `panic!`；合理使用 `thiserror`、`derive_more`、`serde` 派生。
-- 公共 API 通过 `lib.rs` 统一导出，保持边界清晰、粒度小。
+## Coding Style & Naming Conventions
+- Target Rust 2021 with rustfmt defaults; no manual formatting exceptions.
+- Keep modules/functions in `snake_case`; types, enums, traits in `PascalCase`.
+- Favor safe patterns; avoid `panic!` in library code. Lean on `thiserror`, `derive_more`, `serde` for ergonomic derives.
 
-## 测试指南
-- 单元测试靠近实现；集成测试放在 `tests/`（命名 `test_*.rs`）。
-- 关注语义：断言 `ErrorCode`、`StructError`、`detail()/context()` 等行为。
-- 保持示例可编译运行，必要时新增 `examples/` 用例。
+## Testing Guidelines
+- Place unit tests beside implementations; integration tests live in `tests/` and follow the `test_*.rs` naming.
+- Assert semantic behavior: `ErrorCode`, `StructError`, `detail()`, `context()` expectations.
+- Optional coverage: `cargo llvm-cov --all-features --workspace --html` for local reports.
 
-## Commit 与 Pull Request
-- 提交信息简明祈使式（示例：`fmt`、`cargo clippy`），聚合相关改动。
-- PR 需含：变更摘要与动机、关联 issue、API 变更前后对照、同步更新文档/示例；本地通过 `fmt`/`clippy`/`test`。必要时附覆盖率或截图。
+## Commit & Pull Request Guidelines
+- Use short imperative commit messages (examples: `fmt`, `cargo clippy`, `add tracing hook`).
+- Pull requests must summarize motivation, list API changes, link issues, and confirm fmt/clippy/test runs; include doc or example updates when APIs shift.
 
-## 架构概览
-- 核心：`StructError<R>` + `UvsReason`（分层错误分类，支持 `is_retryable`/`is_high_severity`/`category_name`）。
-- 上下文：`WithContext`/`OperationContext` 富化错误；转换与处理位于 `traits::*`（如 `ErrorOwe`、`ErrorConv`）。
+## Architecture Overview
+- Core type is `StructError<R>` layered with `UvsReason` for retry and severity metadata.
+- Context is enriched via `WithContext` and `OperationContext`; transform flows live under `traits::*` (`ErrorOwe`, `ErrorConv`).
+- Preserve small, explicit public exports through `lib.rs` to keep module boundaries clear.
