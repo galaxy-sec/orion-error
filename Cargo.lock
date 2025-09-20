@@ -202,9 +202,9 @@ dependencies = [
 
 [[package]]
 name = "parse-display-derive"
-version = "0.9.1"
+version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2ae7800a4c974efd12df917266338e79a7a74415173caf7e70aa0a0707345281"
+checksum = "7fc048687be30d79502dea2f623d052f3a074012c6eac41726b7ab17213616b1"
 dependencies = [
  "proc-macro2",
  "quote",
