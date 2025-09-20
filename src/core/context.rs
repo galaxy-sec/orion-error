@@ -4,6 +4,7 @@ use log::{debug, error, info, trace, warn};
 use serde::{Deserialize, Serialize};
 use std::{
     fmt::Display,
+    ops::{Deref, DerefMut},
     path::{Path, PathBuf},
 };
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
@@ -188,9 +189,26 @@ impl OperationContext {
             return target;
         }
         if target.is_empty() {
-            format!("{}", self.context)
+            let body = self.context.to_string();
+            body.strip_prefix('\n').unwrap_or(&body).to_string()
         } else {
             format!("{target}: {}", self.context)
+        }
+    }
+
+    /// 创建作用域 guard，默认为失败状态，需显式 `mark_success()`
+    pub fn scope(&mut self) -> OperationScope<'_> {
+        OperationScope {
+            ctx: self,
+            mark_success: false,
+        }
+    }
+
+    /// 创建作用域 guard，在作用域结束时自动标记成功
+    pub fn scoped_success(&mut self) -> OperationScope<'_> {
+        OperationScope {
+            ctx: self,
+            mark_success: true,
         }
     }
 
@@ -232,11 +250,66 @@ impl OperationContext {
     pub fn trace<S: AsRef<str>>(&self, _message: S) {}
 
     /// 与文档示例一致的别名方法（调用上面的同名方法）
-    pub fn log_info<S: AsRef<str>>(&self, message: S) { self.info(message) }
-    pub fn log_debug<S: AsRef<str>>(&self, message: S) { self.debug(message) }
-    pub fn log_warn<S: AsRef<str>>(&self, message: S) { self.warn(message) }
-    pub fn log_error<S: AsRef<str>>(&self, message: S) { self.error(message) }
-    pub fn log_trace<S: AsRef<str>>(&self, message: S) { self.trace(message) }
+    pub fn log_info<S: AsRef<str>>(&self, message: S) {
+        self.info(message)
+    }
+    pub fn log_debug<S: AsRef<str>>(&self, message: S) {
+        self.debug(message)
+    }
+    pub fn log_warn<S: AsRef<str>>(&self, message: S) {
+        self.warn(message)
+    }
+    pub fn log_error<S: AsRef<str>>(&self, message: S) {
+        self.error(message)
+    }
+    pub fn log_trace<S: AsRef<str>>(&self, message: S) {
+        self.trace(message)
+    }
+}
+
+pub struct OperationScope<'a> {
+    ctx: &'a mut OperationContext,
+    mark_success: bool,
+}
+
+impl<'a> OperationScope<'a> {
+    /// 显式标记成功
+    pub fn mark_success(&mut self) {
+        self.mark_success = true;
+    }
+
+    /// 保持失败状态（默认行为）
+    pub fn mark_failure(&mut self) {
+        self.mark_success = false;
+    }
+
+    /// 标记为取消并阻止成功写入
+    pub fn cancel(&mut self) {
+        self.ctx.mark_cancel();
+        self.mark_success = false;
+    }
+}
+
+impl<'a> Deref for OperationScope<'a> {
+    type Target = OperationContext;
+
+    fn deref(&self) -> &Self::Target {
+        self.ctx
+    }
+}
+
+impl<'a> DerefMut for OperationScope<'a> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.ctx
+    }
+}
+
+impl Drop for OperationScope<'_> {
+    fn drop(&mut self) {
+        if self.mark_success {
+            self.ctx.mark_suc();
+        }
+    }
 }
 
 impl From<String> for OperationContext {
@@ -757,6 +830,35 @@ mod tests {
         let ctx2 = OperationContext::want("test").with_auto_log();
         assert!(ctx2.exit_log);
         assert_eq!(*ctx2.target(), Some("test".to_string()));
+    }
+
+    #[test]
+    fn test_scope_marks_success() {
+        let mut ctx = OperationContext::want("scope_success");
+        {
+            let _scope = ctx.scoped_success();
+        }
+        assert!(matches!(ctx.result(), OperationResult::Suc));
+    }
+
+    #[test]
+    fn test_scope_preserves_failure() {
+        let mut ctx = OperationContext::want("scope_fail");
+        {
+            let mut scope = ctx.scoped_success();
+            scope.mark_failure();
+        }
+        assert!(matches!(ctx.result(), OperationResult::Fail));
+    }
+
+    #[test]
+    fn test_scope_cancel() {
+        let mut ctx = OperationContext::want("scope_cancel");
+        {
+            let mut scope = ctx.scoped_success();
+            scope.cancel();
+        }
+        assert!(matches!(ctx.result(), OperationResult::Cancel));
     }
 
     #[test]

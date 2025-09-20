@@ -7,9 +7,9 @@ mod universal;
 use std::fmt::Display;
 
 pub use context::ContextAdd;
-pub use context::{ContextRecord, OperationContext, WithContext};
+pub use context::{ContextRecord, OperationContext, OperationScope, WithContext};
 pub use domain::DomainReason;
-pub use error::{convert_error, StructError, StructErrorTrait};
+pub use error::{convert_error, StructError, StructErrorBuilder, StructErrorTrait};
 pub use reason::ErrorCode;
 pub use universal::{
     ConfErrReason, UvsBizFrom, UvsConfFrom, UvsDataFrom, UvsExternalFrom, UvsLogicFrom, UvsNetFrom,
@@ -27,8 +27,16 @@ pub enum ErrStrategy {
 }
 
 pub fn print_error<R: DomainReason + ErrorCode + Display>(err: &StructError<R>) {
+    println!("[error code{}] \n{err}", err.reason().error_code());
+    for ctx in err.context().iter() {
+        println!("context: {ctx}", ctx = ctx.context());
+    }
+    println!("{}", "-".repeat(50));
+}
+
+pub fn print_error_zh<R: DomainReason + ErrorCode + Display>(err: &StructError<R>) {
     println!("[错误代码 {}] \n{err}", err.reason().error_code());
-    for ctx in err.context() {
+    for ctx in err.context().iter() {
         println!("上下文: {ctx}", ctx = ctx.context());
     }
     println!("{}", "-".repeat(50));

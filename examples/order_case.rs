@@ -5,7 +5,7 @@
 use derive_more::From;
 use orion_error::{
     print_error, ContextRecord, ErrorCode, ErrorConv, ErrorOwe, ErrorWith, OperationContext,
-    StructError, ToStructError, UvsReason,
+    StructError, UvsReason,
 };
 use serde::Serialize;
 use std::{
@@ -172,7 +172,6 @@ impl OrderService {
         let order = Self::parse_order(order_txt, amount)
             .want("解析订单")
             .with(&ctx)
-            .with(("key", "value".to_string()))
             .owe_biz()?;
 
         Self::validate_funds(user_id, order.amount)
@@ -185,16 +184,16 @@ impl OrderService {
 
     fn parse_order(txt: &str, amount: f64) -> Result<storage::Order, ParseError> {
         if txt.is_empty() {
-            return ParseError::from(ParseReason::FormatError)
-                .with_detail("订单文本不能为空")
-                .err();
+            return Err(StructError::builder(ParseReason::FormatError)
+                .detail("订单文本不能为空")
+                .finish());
         }
 
         // 模拟解析逻辑 - 验证金额
         if amount <= 0.0 {
-            return ParseError::from(ParseReason::FormatError)
-                .with_detail("订单金额必须大于零")
-                .err();
+            return Err(StructError::builder(ParseReason::FormatError)
+                .detail("订单金额必须大于零")
+                .finish());
         }
 
         Ok(storage::Order {
@@ -208,9 +207,9 @@ impl OrderService {
         let balance = Self::get_balance(user_id).err_conv()?;
 
         if balance < amount {
-            OrderReason::InsufficientFunds
-                .err_result()
-                .with(format!("当前余额：{balance}，需要：{amount}"))
+            Err(StructError::builder(OrderReason::InsufficientFunds)
+                .detail(format!("当前余额：{balance}，需要：{amount}"))
+                .finish())
         } else {
             Ok(())
         }
@@ -218,9 +217,9 @@ impl OrderService {
 
     fn get_balance(user_id: u32) -> Result<f64, UserError> {
         if user_id != 123 {
-            UserReason::NotFound
-                .err_result()
-                .with(format!("uid:{user_id}"))
+            Err(StructError::builder(UserReason::NotFound)
+                .detail(format!("uid:{user_id}"))
+                .finish())
         } else {
             Ok(500.0)
         }

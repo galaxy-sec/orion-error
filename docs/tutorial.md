@@ -132,6 +132,21 @@ impl ErrorCode for OrderError {
 impl DomainReason for OrderError {}
 ```
 
+### 使用 `StructError::builder` 简化构造
+
+当需要附加详细信息或上下文时，可使用 `StructError::builder` 链式构建错误，避免在 `Result` 链中频繁调用 `with_*`：
+
+```rust
+let err = StructError::builder(OrderError::InsufficientInventory)
+    .detail(format!("剩余库存 {remaining}，请求数量 {amount}"))
+    .context_ref(&ctx)
+    .finish();
+
+return Err(err);
+```
+
+`context_ref` 接受现有的 `OperationContext` 引用，内部自动克隆上下文栈，可与 `err_conv()` 等转换方法组合使用。
+
 ### 基本错误创建和使用
 
 #### 使用预定义的错误类型
@@ -263,6 +278,25 @@ fn find_order(order_id: u32) -> Result<Order, StructError<OrderError>> {
     })
 }
 ```
+
+### 使用 `OperationScope` 自动标记成功
+
+`OperationContext` 默认在 Drop 时视为失败，需要显式调用 `mark_suc()` 才会记录成功日志。通过 RAII guard 可以让成功路径更简单：
+
+```rust
+let mut ctx = OperationContext::want("process_order").with_auto_log();
+{
+    let mut scope = ctx.scoped_success();
+    scope.record("order_id", order_id.to_string());
+
+    if !validate(order_id) {
+        scope.mark_failure(); // 保持失败状态
+        return Err(build_error()?);
+    }
+}
+```
+
+`scope()` 创建默认失败的 guard；`scoped_success()` 在作用域结束时自动将结果标记为成功。若确实需要取消，可调用 `scope.cancel()`。
 
 ### 多层上下文传播
 

@@ -49,6 +49,10 @@ orion-error = "0.4"
 7. **完整示例：Web 应用** - 实际项目的完整应用案例
 8. **最佳实践** - 错误类型选择、上下文管理、测试策略
 
+**亮点更新：**
+- 介绍 `StructError::builder` 链式构造方式，减少重复的 `with_*` 调用
+- 新增 `OperationScope` RAII guard，自动管理 `OperationContext` 的成功/失败状态
+
 **特色示例：**
 - 微服务架构中的错误处理
 - REST API 错误响应标准化

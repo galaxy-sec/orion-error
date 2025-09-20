@@ -1,4 +1,4 @@
-use std::{fmt::Display, ops::Deref};
+use std::{fmt::Display, ops::Deref, sync::Arc};
 
 use crate::ErrorWith;
 
@@ -65,7 +65,7 @@ impl<T: DomainReason> StructError<T> {
                 reason,
                 detail,
                 position,
-                context,
+                context: Arc::new(context),
             }),
         }
     }
@@ -85,7 +85,7 @@ pub struct StructErrorImpl<T: DomainReason> {
     reason: T,
     detail: Option<String>,
     position: Option<String>,
-    context: Vec<OperationContext>,
+    context: Arc<Vec<OperationContext>>,
 }
 
 pub fn convert_error<R1, R2>(other: StructError<R1>) -> StructError<R2>
@@ -97,11 +97,20 @@ where
         other.imp.reason.into(),
         other.imp.detail,
         other.imp.position,
-        other.imp.context,
+        Arc::try_unwrap(other.imp.context).unwrap_or_else(|arc| (*arc).clone()),
     )
 }
 
 impl<T: DomainReason> StructError<T> {
+    pub fn builder(reason: T) -> StructErrorBuilder<T> {
+        StructErrorBuilder {
+            reason,
+            detail: None,
+            position: None,
+            contexts: Vec::new(),
+        }
+    }
+
     /// 使用示例
     ///self.with_position(location!());
     #[must_use]
@@ -111,8 +120,12 @@ impl<T: DomainReason> StructError<T> {
     }
     #[must_use]
     pub fn with_context(mut self, context: CallContext) -> Self {
-        self.imp.context.push(OperationContext::from(context));
+        Arc::make_mut(&mut self.imp.context).push(OperationContext::from(context));
         self
+    }
+
+    pub fn contexts(&self) -> &[OperationContext] {
+        self.imp.context.as_ref()
     }
 
     // 提供修改方法
@@ -153,12 +166,12 @@ impl<S1: Into<String>, S2: Into<String>, T: DomainReason> ContextAdd<(S1, S2)> f
 
 impl<T: DomainReason> ContextAdd<&OperationContext> for StructError<T> {
     fn add_context(&mut self, ctx: &OperationContext) {
-        self.imp.context.push(ctx.clone());
+        Arc::make_mut(&mut self.imp.context).push(ctx.clone());
     }
 }
 impl<T: DomainReason> ContextAdd<OperationContext> for StructError<T> {
     fn add_context(&mut self, ctx: OperationContext) {
-        self.imp.context.push(ctx);
+        Arc::make_mut(&mut self.imp.context).push(ctx);
     }
 }
 
@@ -196,25 +209,58 @@ impl<T: std::fmt::Display + DomainReason + ErrorCode> Display for StructError<T>
     }
 }
 
+pub struct StructErrorBuilder<T: DomainReason> {
+    reason: T,
+    detail: Option<String>,
+    position: Option<String>,
+    contexts: Vec<OperationContext>,
+}
+
+impl<T: DomainReason> StructErrorBuilder<T> {
+    pub fn detail(mut self, detail: impl Into<String>) -> Self {
+        self.detail = Some(detail.into());
+        self
+    }
+
+    pub fn position(mut self, position: impl Into<String>) -> Self {
+        self.position = Some(position.into());
+        self
+    }
+
+    pub fn context(mut self, ctx: OperationContext) -> Self {
+        self.contexts.push(ctx);
+        self
+    }
+
+    pub fn context_ref(mut self, ctx: &OperationContext) -> Self {
+        self.contexts.push(ctx.clone());
+        self
+    }
+
+    pub fn finish(self) -> StructError<T> {
+        StructError::new(self.reason, self.detail, self.position, self.contexts)
+    }
+}
+
 impl<T: DomainReason> ErrorWith for StructError<T> {
-    #[must_use]
     fn want<S: Into<String>>(mut self, desc: S) -> Self {
-        if self.context().is_empty() {
-            self.imp.context.push(OperationContext::want(desc));
-        } else if let Some(x) = self.imp.context.last_mut() {
-            x.with_want(desc.into())
+        let desc = desc.into();
+        let ctx_stack = Arc::make_mut(&mut self.imp.context);
+        if ctx_stack.is_empty() {
+            ctx_stack.push(OperationContext::want(desc));
+        } else if let Some(x) = ctx_stack.last_mut() {
+            x.with_want(desc);
         }
         self
     }
-    #[must_use]
     fn position<S: Into<String>>(mut self, pos: S) -> Self {
         self.imp.position = Some(pos.into());
         self
     }
 
-    #[must_use]
     fn with<C: Into<OperationContext>>(mut self, ctx: C) -> Self {
-        self.add_context(&ctx.into());
+        let ctx = ctx.into();
+        self.add_context(ctx);
         self
     }
 }

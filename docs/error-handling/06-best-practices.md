@@ -1718,6 +1718,39 @@ fn test_error_scenarios() {
 }
 ```
 
+## 结构化错误构建建议
+
+- 在汇聚链路上优先使用 `StructError::builder`：可一次性设置 `detail()`、`position()` 与多条上下文，避免在 `Result` 链中多次克隆。
+- 使用 `builder.context_ref(&ctx)` 复用既有 `OperationContext`，库内部会共享 `Arc<Vec<_>>`，不会重复分配。
+- 与 `err_conv()`/`owe_*()` 组合时，可先构建领域级错误，再通过转换保持上下文连续。
+
+```rust
+let err = StructError::builder(OrderError::InsufficientInventory)
+    .detail(format!("剩余库存 {remaining}, 请求 {want}"))
+    .context_ref(&ctx)
+    .finish();
+
+return Err(err);
+```
+
+## 上下文作用域 Guard
+
+- 对需要自动记录成功日志的流程，优先使用 `OperationContext::scoped_success()`；无须在所有返回分支显式 `mark_suc()`。
+- `OperationScope` 默认在 Drop 时检查状态：`scope()` 保持失败，`scoped_success()` 自动标记成功，可调用 `mark_failure()` 或 `cancel()` 覆盖。
+- Guard 实现 `Deref`/`DerefMut`，可直接调用 `record()/info()` 等方法。
+
+```rust
+let mut ctx = OperationContext::want("billing").with_auto_log();
+{
+    let mut scope = ctx.scoped_success();
+    scope.record("invoice_id", invoice_id.to_string());
+    if !charge() {
+        scope.mark_failure();
+        return Err(fallback());
+    }
+}
+```
+
 ## 相关文档
 
 - [错误分类体系](./01-error-classification.md) - 不同类型错误的分类方法

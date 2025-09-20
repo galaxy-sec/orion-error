@@ -1,4 +1,20 @@
-# 更新日志
+# 更新日志 (CHANGELOG)
+
+## 版本 0.5.5 (2024-9-20)
+
+### ✨ 新增与优化
+- **结构化错误构建器**：`StructError::builder` 支持链式设置 detail、position、context，并与 `context_ref` 共享上下文栈，避免重复分配。
+- **上下文作用域 Guard**：新增 `OperationContext::scope()` / `scoped_success()` 与 `OperationScope`，在成功路径自动标记 `mark_suc()`，降低遗漏风险。
+- **错误转换性能**：`ErrorOwe::owe_*` 系列仅序列化一次底层错误消息，减少 `to_string()` 开销；上下文内部改用 `Arc<Vec<_>>` 共用堆栈。
+- **示例更新**：`examples/order_case.rs`、`logging_example.rs` 演示 builder 与作用域 guard 的推荐写法。
+
+### 📚 文档更新
+- `docs/tutorial.md` 增补 builder/OperationScope 的实践示例。
+- `docs/error-handling/05-logging-standards.md`、`06-best-practices.md` 补充 guard 与构建器的使用建议。
+- `docs/README.md` 在亮点更新中突出上述能力。
+
+### 🧪 兼容性
+- 接口向后兼容；若手动调用 `mark_suc()`，仍可与作用域 guard 共存。
 
 ## [v0.5.0] - 2025-08-25
 

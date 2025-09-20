@@ -95,6 +95,8 @@ pub struct CallContext {
 }
 ```
 
+> 提示：0.5.5 起提供 `OperationContext::scoped_success()` / `scope()` RAII guard，可在作用域结束时自动更新 `is_suc` 状态，减少遗漏 `mark_suc()` 的风险。
+
 #### 用户上下文
 ```rust
 #[derive(Debug, Clone, Serialize, Deserialize)]
