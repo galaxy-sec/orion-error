@@ -13,6 +13,7 @@ where
     fn owe(self, reason: R) -> Result<T, StructError<R>>;
     fn owe_logic(self) -> Result<T, StructError<R>>;
     fn owe_biz(self) -> Result<T, StructError<R>>;
+    fn owe_rule(self) -> Result<T, StructError<R>>;
     fn owe_validation(self) -> Result<T, StructError<R>>;
     fn owe_data(self) -> Result<T, StructError<R>>;
     fn owe_conf(self) -> Result<T, StructError<R>>;
@@ -42,6 +43,9 @@ where
     }
     fn owe_biz(self) -> Result<T, StructError<R>> {
         map_err_with(self, |msg| R::from(UvsReason::business_error(msg)))
+    }
+    fn owe_rule(self) -> Result<T, StructError<R>> {
+        map_err_with(self, |msg| R::from(UvsReason::rule_error(msg)))
     }
     fn owe_validation(self) -> Result<T, StructError<R>> {
         map_err_with(self, |msg| R::from(UvsReason::validation_error(msg)))

@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main, develop, release/*]
   pull_request:
-    branches: [main, develop]
+    branches: [main, develop, release/*]
 
 env:
   CARGO_TERM_COLOR: always
@@ -54,6 +54,7 @@ jobs:
       - uses: rustsec/audit-check@v2.0.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+
   coverage:
     name: Code Coverage
     runs-on: ubuntu-latest
