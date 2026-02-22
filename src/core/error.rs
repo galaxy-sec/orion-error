@@ -7,8 +7,6 @@ use super::{
     domain::DomainReason,
     ContextAdd, ErrorCode,
 };
-use derive_getters::Getters;
-use serde::Serialize;
 use thiserror::Error;
 
 #[macro_export]
@@ -32,17 +30,27 @@ impl<T: DomainReason + ErrorCode> ErrorCode for StructError<T> {
 
 /// Structured error type containing detailed error information
 /// including error source, contextual data, and debugging information.
-#[derive(Error, Debug, Clone, PartialEq, Getters)]
+#[derive(Error, Debug, Clone, PartialEq)]
 pub struct StructError<T: DomainReason> {
     imp: Box<StructErrorImpl<T>>,
 }
 
-impl<T: DomainReason> Serialize for StructError<T> {
+#[cfg(feature = "serde")]
+impl<T: DomainReason> serde::Serialize for StructError<T>
+where
+    StructErrorImpl<T>: serde::Serialize,
+{
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
         self.imp.serialize(serializer)
+    }
+}
+
+impl<T: DomainReason> StructError<T> {
+    pub fn imp(&self) -> &StructErrorImpl<T> {
+        &self.imp
     }
 }
 
@@ -80,12 +88,31 @@ where
     }
 }
 
-#[derive(Error, Debug, Clone, PartialEq, Getters, Serialize)]
+#[derive(Error, Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
 pub struct StructErrorImpl<T: DomainReason> {
     reason: T,
     detail: Option<String>,
     position: Option<String>,
     context: Arc<Vec<OperationContext>>,
+}
+
+impl<T: DomainReason> StructErrorImpl<T> {
+    pub fn reason(&self) -> &T {
+        &self.reason
+    }
+
+    pub fn detail(&self) -> &Option<String> {
+        &self.detail
+    }
+
+    pub fn position(&self) -> &Option<String> {
+        &self.position
+    }
+
+    pub fn context(&self) -> &Arc<Vec<OperationContext>> {
+        &self.context
+    }
 }
 
 pub fn convert_error<R1, R2>(other: StructError<R1>) -> StructError<R2>
@@ -265,7 +292,7 @@ impl<T: DomainReason> ErrorWith for StructError<T> {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "serde"))]
 mod tests {
 
     use crate::UvsReason;
@@ -274,7 +301,8 @@ mod tests {
     use derive_more::From;
 
     // Define a simple DomainReason for testing
-    #[derive(Debug, Clone, PartialEq, Serialize, Error, From)]
+    #[derive(Debug, Clone, PartialEq, Error, From)]
+    #[cfg_attr(feature = "serde", derive(serde::Serialize))]
     enum TestDomainReason {
         #[error("test error")]
         TestError,

@@ -1,13 +1,12 @@
-use derive_getters::Getters;
-#[cfg(feature = "log")]
+#[cfg(all(feature = "log", not(feature = "tracing")))]
 use log::{debug, error, info, trace, warn};
-use serde::{Deserialize, Serialize};
 use std::{
     fmt::Display,
     ops::{Deref, DerefMut},
     path::{Path, PathBuf},
 };
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[derive(Debug, Clone, PartialEq, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum OperationResult {
     Suc,
     #[default]
@@ -17,7 +16,17 @@ pub enum OperationResult {
 
 // 使用编译期模块路径作为默认日志 target，以提升可读性
 const DEFAULT_MOD_PATH: &str = module_path!();
-#[derive(Debug, Clone, Getters, Serialize, Deserialize, PartialEq)]
+
+/// 在调用处展开 `module_path!()`，便于自动日志输出正确的模块路径。
+#[macro_export]
+macro_rules! op_context {
+    ($target:expr) => {
+        $crate::OperationContext::want($target).with_mod_path(module_path!())
+    };
+}
+
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct OperationContext {
     context: CallContext,
     result: OperationResult,
@@ -51,8 +60,40 @@ impl From<CallContext> for OperationContext {
 
 impl Drop for OperationContext {
     fn drop(&mut self) {
-        if self.exit_log {
-            #[cfg(feature = "log")]
+        if !self.exit_log {
+            return;
+        }
+
+        #[cfg(feature = "tracing")]
+        {
+            let ctx = self.format_context();
+            match self.result() {
+                OperationResult::Suc => {
+                    tracing::info!(
+                        target: "domain",
+                        mod_path = %self.mod_path,
+                        "suc! {ctx}"
+                    )
+                }
+                OperationResult::Fail => {
+                    tracing::error!(
+                        target: "domain",
+                        mod_path = %self.mod_path,
+                        "fail! {ctx}"
+                    )
+                }
+                OperationResult::Cancel => {
+                    tracing::warn!(
+                        target: "domain",
+                        mod_path = %self.mod_path,
+                        "cancel! {ctx}"
+                    )
+                }
+            }
+        }
+
+        #[cfg(all(feature = "log", not(feature = "tracing")))]
+        {
             match self.result() {
                 OperationResult::Suc => {
                     info!(target: self.mod_path.as_str(), "suc! {}", self.format_context());
@@ -125,6 +166,26 @@ where
 }
 
 impl OperationContext {
+    pub fn context(&self) -> &CallContext {
+        &self.context
+    }
+
+    pub fn result(&self) -> &OperationResult {
+        &self.result
+    }
+
+    pub fn exit_log(&self) -> &bool {
+        &self.exit_log
+    }
+
+    pub fn mod_path(&self) -> &String {
+        &self.mod_path
+    }
+
+    pub fn target(&self) -> &Option<String> {
+        &self.target
+    }
+
     pub fn new() -> Self {
         Self {
             target: None,
@@ -183,6 +244,7 @@ impl OperationContext {
     }
 
     /// 格式化上下文信息，用于日志输出
+    #[cfg_attr(not(any(feature = "log", feature = "tracing")), allow(dead_code))]
     fn format_context(&self) -> String {
         let target = self.target.clone().unwrap_or_default();
         if self.context.items.is_empty() {
@@ -213,40 +275,90 @@ impl OperationContext {
     }
 
     /// 记录日志信息，在无错误情况下也可以提供有价值的上下文信息
-    /// 注意：需要启用 `log` 特性
-    #[cfg(feature = "log")]
+    /// 注意：需要启用 `log` 或 `tracing` 特性
+    #[cfg(feature = "tracing")]
+    pub fn info<S: AsRef<str>>(&self, message: S) {
+        tracing::info!(
+            target: "domain",
+            mod_path = %self.mod_path,
+            "{}: {}",
+            self.format_context(),
+            message.as_ref()
+        );
+    }
+    #[cfg(all(feature = "log", not(feature = "tracing")))]
     pub fn info<S: AsRef<str>>(&self, message: S) {
         info!(target: self.mod_path.as_str(), "{}: {}", self.format_context(), message.as_ref());
     }
-    #[cfg(not(feature = "log"))]
+    #[cfg(not(any(feature = "log", feature = "tracing")))]
     pub fn info<S: AsRef<str>>(&self, _message: S) {}
 
-    #[cfg(feature = "log")]
+    #[cfg(feature = "tracing")]
+    pub fn debug<S: AsRef<str>>(&self, message: S) {
+        tracing::debug!(
+            target: "domain",
+            mod_path = %self.mod_path,
+            "{}: {}",
+            self.format_context(),
+            message.as_ref()
+        );
+    }
+    #[cfg(all(feature = "log", not(feature = "tracing")))]
     pub fn debug<S: AsRef<str>>(&self, message: S) {
         debug!( target: self.mod_path.as_str(), "{}: {}", self.format_context(), message.as_ref());
     }
-    #[cfg(not(feature = "log"))]
+    #[cfg(not(any(feature = "log", feature = "tracing")))]
     pub fn debug<S: AsRef<str>>(&self, _message: S) {}
 
-    #[cfg(feature = "log")]
+    #[cfg(feature = "tracing")]
+    pub fn warn<S: AsRef<str>>(&self, message: S) {
+        tracing::warn!(
+            target: "domain",
+            mod_path = %self.mod_path,
+            "{}: {}",
+            self.format_context(),
+            message.as_ref()
+        );
+    }
+    #[cfg(all(feature = "log", not(feature = "tracing")))]
     pub fn warn<S: AsRef<str>>(&self, message: S) {
         warn!( target: self.mod_path.as_str(), "{}: {}", self.format_context(), message.as_ref());
     }
-    #[cfg(not(feature = "log"))]
+    #[cfg(not(any(feature = "log", feature = "tracing")))]
     pub fn warn<S: AsRef<str>>(&self, _message: S) {}
 
-    #[cfg(feature = "log")]
+    #[cfg(feature = "tracing")]
+    pub fn error<S: AsRef<str>>(&self, message: S) {
+        tracing::error!(
+            target: "domain",
+            mod_path = %self.mod_path,
+            "{}: {}",
+            self.format_context(),
+            message.as_ref()
+        );
+    }
+    #[cfg(all(feature = "log", not(feature = "tracing")))]
     pub fn error<S: AsRef<str>>(&self, message: S) {
         error!(target: self.mod_path.as_str(), "{}: {}", self.format_context(), message.as_ref());
     }
-    #[cfg(not(feature = "log"))]
+    #[cfg(not(any(feature = "log", feature = "tracing")))]
     pub fn error<S: AsRef<str>>(&self, _message: S) {}
 
-    #[cfg(feature = "log")]
+    #[cfg(feature = "tracing")]
+    pub fn trace<S: AsRef<str>>(&self, message: S) {
+        tracing::trace!(
+            target: "domain",
+            mod_path = %self.mod_path,
+            "{}: {}",
+            self.format_context(),
+            message.as_ref()
+        );
+    }
+    #[cfg(all(feature = "log", not(feature = "tracing")))]
     pub fn trace<S: AsRef<str>>(&self, message: S) {
         trace!( target: self.mod_path.as_str(), "{}: {}", self.format_context(), message.as_ref());
     }
-    #[cfg(not(feature = "log"))]
+    #[cfg(not(any(feature = "log", feature = "tracing")))]
     pub fn trace<S: AsRef<str>>(&self, _message: S) {}
 
     /// 与文档示例一致的别名方法（调用上面的同名方法）
@@ -429,7 +541,8 @@ impl From<&OperationContext> for OperationContext {
     }
 }
 
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct CallContext {
     pub items: Vec<(String, String)>,
 }
@@ -489,6 +602,13 @@ impl Display for CallContext {
 mod tests {
     use super::*;
     use std::path::PathBuf;
+
+    #[test]
+    fn test_op_context_macro_sets_callsite_mod_path() {
+        let ctx = crate::op_context!("macro_target");
+        assert_eq!(*ctx.target(), Some("macro_target".to_string()));
+        assert_eq!(ctx.mod_path().as_str(), module_path!());
+    }
 
     #[test]
     fn test_withcontext_new() {
@@ -1005,6 +1125,7 @@ mod tests {
         assert!(formatted.contains("role"));
     }
 
+    #[cfg(feature = "serde")]
     #[test]
     fn test_context_serialization() {
         let mut ctx = OperationContext::want("serialization_test");

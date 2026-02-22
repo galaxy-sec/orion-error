@@ -56,7 +56,7 @@ mod tests {
     use crate::{ErrorCode, StructError, UvsReason};
 
     // 定义测试用的 DomainReason
-    #[derive(Debug, Clone, PartialEq, serde::Serialize, thiserror::Error)]
+    #[derive(Debug, Clone, PartialEq, thiserror::Error)]
     enum TestReason {
         #[error("test error")]
         TestError,
@@ -80,7 +80,7 @@ mod tests {
     }
 
     // 定义另一个 DomainReason 用于测试转换
-    #[derive(Debug, Clone, PartialEq, serde::Serialize, thiserror::Error)]
+    #[derive(Debug, Clone, PartialEq, thiserror::Error)]
     enum AnotherReason {
         #[error("another error")]
         AnotherError,
@@ -143,7 +143,7 @@ mod tests {
 
         // 测试带有 UvsReason 的转换
         let uvs_error: StructError<TestReason> =
-            TestReason::Uvs(UvsReason::network_error("network failed")).to_err();
+            TestReason::Uvs(UvsReason::network_error()).to_err();
 
         let converted_uvs_error: StructError<AnotherReason> = uvs_error.conv();
 
@@ -167,12 +167,12 @@ mod tests {
         assert_eq!(error_from_result.error_code(), 1001);
 
         // 测试使用 UvsReason
-        let uvs_reason1 = UvsReason::validation_error("invalid input");
+        let uvs_reason1 = UvsReason::validation_error();
         let uvs_error: StructError<UvsReason> = uvs_reason1.to_err();
 
         assert_eq!(uvs_error.error_code(), 100);
 
-        let uvs_reason2 = UvsReason::validation_error("invalid input");
+        let uvs_reason2 = UvsReason::validation_error();
         let uvs_result: Result<i32, StructError<UvsReason>> = uvs_reason2.err_result();
         assert!(uvs_result.is_err());
         assert_eq!(uvs_result.unwrap_err().error_code(), 100);

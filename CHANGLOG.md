@@ -1,5 +1,35 @@
 # 更新日志 (CHANGELOG)
 
+## [v0.6.0] - 2026-02-22
+
+### 🚨 Breaking Changes
+- **`DomainReason` 去掉 `Serialize` 约束**：从 `PartialEq + Display + Serialize` 调整为 `PartialEq + Display`。
+- **`serde` 改为可选特性**：默认不启用；需要序列化时请启用 `serde` feature。
+- **移除 `UvsXxxFrom` 旧 trait 族**：统一使用 `UvsFrom`。
+- **`UvsReason` 结构简化**：除 `ConfigError(ConfErrReason)` 外，其余分类不再携带消息字符串。
+  - 例如：`UvsReason::system_error(\"msg\")` -> `UvsReason::system_error()`。
+- **`ErrorOwe` 拆分**：`.owe(reason)` 归属 `ErrorOweBase`；`.owe_sys()` 等快捷方法归属 `ErrorOwe`。
+
+### ✨ 新增与优化
+- **统一转换接口 `UvsFrom`**：所有 `from_*` 构造收敛到单一 trait。
+- **`owe_xxx` 消息去重**：错误消息仅落在 `detail`，不再在 `reason` 中重复存储。
+- **新增 `op_context!` 宏**：在调用处展开 `module_path!()`，避免日志模块路径固定在库内部。
+- **tracing 实际生效**：`OperationContext` 的 Drop 与日志方法支持 tracing；tracing target 统一为 `domain`。
+- **移除 `derive-getters` 依赖**：改为手写 getter，减少依赖体积。
+- **`derive_more` 精简**：仅保留 `from` 功能。
+
+### 🧪 验证
+- 通过：
+  - `cargo test --no-default-features`
+  - `cargo test --features tracing --no-default-features`
+  - `cargo test --features serde --no-default-features`
+  - `cargo test --all-features`
+
+### 迁移提示
+- `.owe(...)` 记得引入 `ErrorOweBase`。
+- 旧 `UvsReason::*_error(\"...\")` / `UvsReason::core_conf(\"...\")` 改为无参版本。
+- 需要序列化时启用：`orion-error = { version = \"0.6\", features = [\"serde\"] }`。
+
 ## 版本 0.5.5 (2024-9-20)
 
 ### ✨ 新增与优化

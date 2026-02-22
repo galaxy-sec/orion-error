@@ -1,12 +1,12 @@
 use orion_error::ErrorCode;
 use orion_error::ErrorOwe;
+use orion_error::ErrorOweBase;
 use orion_error::{StructError, UvsReason};
 
 #[test]
 fn test_owe_basic_conversion() {
     let result: Result<i32, &str> = Err("test error");
-    let converted: Result<i32, StructError<UvsReason>> =
-        result.owe(UvsReason::business_error("test biz error"));
+    let converted: Result<i32, StructError<UvsReason>> = result.owe(UvsReason::business_error());
 
     assert_eq!(converted.as_ref().unwrap_err().error_code(), 101);
     assert!(converted
@@ -212,8 +212,7 @@ fn test_owe_timeout() {
 #[test]
 fn test_owe_not_found() {
     let result: Result<i32, &str> = Err("not found error");
-    let converted: Result<i32, StructError<UvsReason>> =
-        result.owe(UvsReason::not_found_error("test not found error"));
+    let converted: Result<i32, StructError<UvsReason>> = result.owe(UvsReason::not_found_error());
 
     assert_eq!(converted.as_ref().unwrap_err().error_code(), 102);
     assert!(converted
@@ -228,8 +227,7 @@ fn test_owe_not_found() {
 #[test]
 fn test_owe_permission() {
     let result: Result<i32, &str> = Err("permission error");
-    let converted: Result<i32, StructError<UvsReason>> =
-        result.owe(UvsReason::permission_error("test permission error"));
+    let converted: Result<i32, StructError<UvsReason>> = result.owe(UvsReason::permission_error());
 
     assert_eq!(converted.as_ref().unwrap_err().error_code(), 103);
     assert!(converted
@@ -244,8 +242,7 @@ fn test_owe_permission() {
 #[test]
 fn test_owe_external() {
     let result: Result<i32, &str> = Err("external error");
-    let converted: Result<i32, StructError<UvsReason>> =
-        result.owe(UvsReason::external_error("test external error"));
+    let converted: Result<i32, StructError<UvsReason>> = result.owe(UvsReason::external_error());
 
     assert_eq!(converted.as_ref().unwrap_err().error_code(), 301);
     assert!(converted
@@ -275,8 +272,7 @@ fn test_owe_system() {
 #[test]
 fn test_error_code_implementation() {
     let result: Result<i32, &str> = Err("test error");
-    let converted: Result<i32, StructError<UvsReason>> =
-        result.owe(UvsReason::business_error("test biz error"));
+    let converted: Result<i32, StructError<UvsReason>> = result.owe(UvsReason::business_error());
 
     assert_eq!(converted.as_ref().unwrap_err().error_code(), 101);
     assert!(converted

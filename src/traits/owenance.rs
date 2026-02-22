@@ -1,16 +1,19 @@
-use crate::{
-    core::{DomainReason, UvsNetFrom, UvsReason},
-    StructError, UvsDataFrom, UvsSysFrom, UvsTimeoutFrom,
-};
+use crate::{core::DomainReason, StructError, UvsFrom};
 
 /// 非结构错误(StructError) 转化为结构错误。
 ///
 use std::fmt::Display;
-pub trait ErrorOwe<T, R>
+pub trait ErrorOweBase<T, R>
 where
     R: DomainReason,
 {
     fn owe(self, reason: R) -> Result<T, StructError<R>>;
+}
+
+pub trait ErrorOwe<T, R>: ErrorOweBase<T, R>
+where
+    R: DomainReason + UvsFrom,
+{
     fn owe_logic(self) -> Result<T, StructError<R>>;
     fn owe_biz(self) -> Result<T, StructError<R>>;
     fn owe_rule(self) -> Result<T, StructError<R>>;
@@ -23,10 +26,10 @@ where
     fn owe_sys(self) -> Result<T, StructError<R>>;
 }
 
-impl<T, E, R> ErrorOwe<T, R> for Result<T, E>
+impl<T, E, R> ErrorOweBase<T, R> for Result<T, E>
 where
     E: Display,
-    R: DomainReason + From<UvsReason>,
+    R: DomainReason,
 {
     fn owe(self, reason: R) -> Result<T, StructError<R>> {
         match self {
@@ -37,36 +40,42 @@ where
             }
         }
     }
+}
 
+impl<T, E, R> ErrorOwe<T, R> for Result<T, E>
+where
+    E: Display,
+    R: DomainReason + UvsFrom,
+{
     fn owe_logic(self) -> Result<T, StructError<R>> {
-        map_err_with(self, |msg| R::from(UvsReason::logic_error(msg)))
+        map_err_with(self, <R as UvsFrom>::from_logic)
     }
     fn owe_biz(self) -> Result<T, StructError<R>> {
-        map_err_with(self, |msg| R::from(UvsReason::business_error(msg)))
+        map_err_with(self, <R as UvsFrom>::from_biz)
     }
     fn owe_rule(self) -> Result<T, StructError<R>> {
-        map_err_with(self, |msg| R::from(UvsReason::rule_error(msg)))
+        map_err_with(self, <R as UvsFrom>::from_rule)
     }
     fn owe_validation(self) -> Result<T, StructError<R>> {
-        map_err_with(self, |msg| R::from(UvsReason::validation_error(msg)))
+        map_err_with(self, <R as UvsFrom>::from_validation)
     }
     fn owe_data(self) -> Result<T, StructError<R>> {
-        map_err_with(self, |msg| R::from_data(msg, None))
+        map_err_with(self, <R as UvsFrom>::from_data)
     }
     fn owe_conf(self) -> Result<T, StructError<R>> {
-        map_err_with(self, |msg| R::from(UvsReason::core_conf(msg)))
+        map_err_with(self, <R as UvsFrom>::from_conf)
     }
     fn owe_res(self) -> Result<T, StructError<R>> {
-        map_err_with(self, |msg| R::from(UvsReason::resource_error(msg)))
+        map_err_with(self, <R as UvsFrom>::from_res)
     }
     fn owe_net(self) -> Result<T, StructError<R>> {
-        map_err_with(self, |msg| R::from_net(msg))
+        map_err_with(self, <R as UvsFrom>::from_net)
     }
     fn owe_timeout(self) -> Result<T, StructError<R>> {
-        map_err_with(self, |msg| R::from_timeout(msg))
+        map_err_with(self, <R as UvsFrom>::from_timeout)
     }
     fn owe_sys(self) -> Result<T, StructError<R>> {
-        map_err_with(self, |msg| R::from_sys(msg))
+        map_err_with(self, <R as UvsFrom>::from_sys)
     }
 }
 
@@ -74,11 +83,11 @@ fn map_err_with<T, E, R, F>(result: Result<T, E>, f: F) -> Result<T, StructError
 where
     E: Display,
     R: DomainReason,
-    F: FnOnce(String) -> R,
+    F: FnOnce() -> R,
 {
     result.map_err(|e| {
-        let msg = e.to_string();
-        let reason = f(msg.clone());
-        StructError::from(reason).with_detail(msg)
+        let detail = e.to_string();
+        let reason = f();
+        StructError::from(reason).with_detail(detail)
     })
 }

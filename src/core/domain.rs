@@ -1,17 +1,17 @@
 use std::fmt::Display;
 
 use derive_more::From;
-use serde::Serialize;
 use thiserror::Error;
 
 use super::UvsReason;
 
-pub trait DomainReason: PartialEq + Display + Serialize {}
+pub trait DomainReason: PartialEq + Display {}
 
-impl<T> DomainReason for T where T: From<UvsReason> + Display + PartialEq + Serialize {}
+impl<T> DomainReason for T where T: From<UvsReason> + Display + PartialEq {}
 
 #[allow(dead_code)]
-#[derive(Debug, PartialEq, Serialize, Error, From)]
+#[derive(Debug, PartialEq, Error, From)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
 pub enum NullReason {
     #[allow(dead_code)]
     #[error("null")]

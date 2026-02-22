@@ -7,7 +7,6 @@ use orion_error::{
     print_error, ContextRecord, ErrorCode, ErrorConv, ErrorOwe, ErrorWith, OperationContext,
     StructError, UvsReason,
 };
-use serde::Serialize;
 use std::{
     fmt::{Display, Formatter},
     sync::atomic::Ordering,
@@ -15,7 +14,7 @@ use std::{
 use thiserror::Error;
 
 // ========== 领域错误定义 ==========
-#[derive(Debug, PartialEq, Clone, Serialize, From)]
+#[derive(Debug, PartialEq, Clone, From)]
 pub enum OrderReason {
     FormatError,
     InsufficientFunds,
@@ -32,7 +31,7 @@ impl ErrorCode for OrderReason {
     }
 }
 
-#[derive(Debug, PartialEq, Clone, Serialize, Error, From)]
+#[derive(Debug, PartialEq, Clone, Error, From)]
 pub enum StoreReason {
     #[error("storage full")]
     StorageFull,
@@ -48,7 +47,7 @@ impl ErrorCode for StoreReason {
     }
 }
 
-#[derive(Debug, Error, PartialEq, Clone, Serialize, From)]
+#[derive(Debug, Error, PartialEq, Clone, From)]
 pub enum ParseReason {
     #[error("format error")]
     FormatError,
@@ -67,15 +66,13 @@ impl ErrorCode for ParseReason {
 impl From<ParseReason> for OrderReason {
     fn from(value: ParseReason) -> Self {
         match value {
-            ParseReason::FormatError => {
-                Self::Uvs(UvsReason::validation_error("order format error"))
-            }
+            ParseReason::FormatError => Self::Uvs(UvsReason::validation_error()),
             ParseReason::Uvs(uvs_reason) => Self::Uvs(uvs_reason),
         }
     }
 }
 
-#[derive(Debug, PartialEq, Clone, Serialize, Error, From)]
+#[derive(Debug, PartialEq, Clone, Error, From)]
 pub enum UserReason {
     #[error("not found")]
     NotFound,
@@ -86,7 +83,7 @@ pub enum UserReason {
 impl From<UserReason> for OrderReason {
     fn from(value: UserReason) -> Self {
         match value {
-            UserReason::NotFound => Self::Uvs(UvsReason::not_found_error("user not found")),
+            UserReason::NotFound => Self::Uvs(UvsReason::not_found_error()),
             UserReason::Uvs(uvs_reason) => Self::Uvs(uvs_reason),
         }
     }
@@ -95,9 +92,7 @@ impl From<UserReason> for OrderReason {
 impl From<StoreReason> for OrderReason {
     fn from(value: StoreReason) -> Self {
         match value {
-            StoreReason::StorageFull => {
-                Self::Uvs(UvsReason::resource_error("storage capacity exceeded"))
-            }
+            StoreReason::StorageFull => Self::Uvs(UvsReason::resource_error()),
             StoreReason::Uvs(uvs_reason) => Self::Uvs(uvs_reason),
         }
     }

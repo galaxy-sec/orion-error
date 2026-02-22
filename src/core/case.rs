@@ -2,7 +2,6 @@
 mod tests {
 
     use derive_more::From;
-    use serde::Serialize;
     use thiserror::Error;
 
     use crate::{
@@ -11,7 +10,7 @@ mod tests {
     };
 
     // 测试用领域原因类型
-    #[derive(Debug, PartialEq, Clone, Serialize, Error, From)]
+    #[derive(Debug, PartialEq, Clone, Error, From)]
     enum TestDomainReason {
         #[error("why1")]
         Why1,
@@ -29,7 +28,7 @@ mod tests {
     }
 
     // 另一个领域原因类型用于转换测试
-    #[derive(Debug, PartialEq, Clone, Serialize, Error, From)]
+    #[derive(Debug, PartialEq, Clone, Error, From)]
     enum OtherDomainReason {
         #[error("why1")]
         Why2,
@@ -97,19 +96,17 @@ mod tests {
         ctx.record("step", "initialization");
         ctx.record("resource", "database");
 
-        let err = StructError::from(TestDomainReason::Uvs(UvsReason::core_conf(
-            "config missing",
-        )))
-        .with_detail("missing db config")
-        .position("src/config.rs:42")
-        .want("database_config")
-        .with(ctx);
+        let err = StructError::from(TestDomainReason::Uvs(UvsReason::core_conf()))
+            .with_detail("missing db config")
+            .position("src/config.rs:42")
+            .want("database_config")
+            .with(ctx);
 
         let display_output = format!("{err}");
         println!("{display_output}");
 
         assert!(display_output.contains("[300]")); // ConfError的error code
-        assert!(display_output.contains("configuration error << core config > config missing"));
+        assert!(display_output.contains("configuration error << core config"));
         assert!(display_output.contains("-> At: src/config.rs:42"));
         assert!(display_output.contains("-> Want: database_config"));
         assert!(display_output.contains("-> Details: missing db config"));

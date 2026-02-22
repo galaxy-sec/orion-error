@@ -11,11 +11,7 @@ pub use context::{ContextRecord, OperationContext, OperationScope, WithContext};
 pub use domain::DomainReason;
 pub use error::{convert_error, StructError, StructErrorBuilder, StructErrorTrait};
 pub use reason::ErrorCode;
-pub use universal::{
-    ConfErrReason, UvsBizFrom, UvsConfFrom, UvsDataFrom, UvsExternalFrom, UvsLogicFrom, UvsNetFrom,
-    UvsNotFoundFrom, UvsPermissionFrom, UvsReason, UvsResFrom, UvsSysFrom, UvsTimeoutFrom,
-    UvsValidationFrom,
-};
+pub use universal::{ConfErrReason, UvsFrom, UvsReason};
 
 pub enum ErrStrategy {
     /// 带退避策略的重试（包含基本参数）
