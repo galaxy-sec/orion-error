@@ -79,6 +79,7 @@ jobs:
         uses: codecov/codecov-action@v5
         with:
           files: ./lcov.info
+          disable_search: true
           flags: unittests
           name: coverage-${{ github.ref_name }}
           token: ${{ secrets.CODECOV_TOKEN }}
